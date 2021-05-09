@@ -4,16 +4,26 @@
 #include <stdio.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <string.h>
+#include "linkedList-lib.h"
 
 #define SOCKNAME "/tmp/socket1"
-/* ERROR CODE:
+#define MESSAGE_SIZE 100
 
-*/
+typedef struct package
+{
+    int mode;
+    char key[MESSAGE_SIZE];
+    char value[MESSAGE_SIZE];
+} Package;
+
 int main()
 {
-    char str[100];
+    Node *head = create_LinkedList();
+
     struct sockaddr_un server;
     int send_socket;
+    Package client_package;
     server.sun_family = AF_UNIX;
     strcpy(server.sun_path, SOCKNAME);
 
@@ -34,21 +44,62 @@ int main()
 
     printf("Socket created, has name %s\n", server.sun_path);
 
-    while(1) {
-        listen(send_socket, 10);
-        printf("Waiting for connections!!\n");
-        int client = accept(send_socket, NULL, NULL);
+    listen(send_socket, 10);
+    printf("Waiting for connections!!\n");
+    int client = accept(send_socket, NULL, NULL);
 
-        if (client != -1)
+    if (client != -1)
+    {
+        printf("Connected to %d\n", client);
+    }
+    while (1)
+    {
+        int n = recv(client, (void *)&client_package, sizeof(client_package), 0);
+        printf("Received %d bytes, mode: %d key: %s value: %s\n", n, client_package.mode, client_package.key, client_package.value);
+        if (client_package.mode == 1 && n > 0)
         {
-            printf("Connected to %d\n", client);
+            if (searchNode(client_package.key, head) == NULL)
+            {
+                head = insertNode(client_package.key, client_package.value, head);
+            }
+            else
+            {
+                updateValue(searchNode(client_package.key, head), client_package.value);
+            }
+            strcpy(client_package.key, "accepted");
+        }
+        else if (client_package.mode == 0 && n > 0)
+        {
+            Node *aux = searchNode(client_package.key, head);
+            if (aux == NULL)
+            {
+                strcpy(client_package.key, "declined");
+            }
+            else
+            {
+                strcpy(client_package.value, aux->value);
+                strcpy(client_package.key, "accepted");
+            }
+        }
+        else if (client_package.mode == 2 && n > 0)
+        {
+            if (searchNode(client_package.key, head) == NULL)
+            {
+                strcpy(client_package.key, "declined");
+            }
+            else
+            {
+                deleteNode(client_package.key, head);
+                strcpy(client_package.key, "accepted");
+            }
+        }
+        else
+        {
+            strcpy(client_package.key, "declined");
         }
 
-        int n = recv(client, str, 100, 0);
-
-        printf("Received %d bytes, message: %s\n", n, str);
-
-        send(client, str, n, 0);
+        send(client, (void *)&client_package, sizeof(client_package), 0);
+        printList(head);
     }
 
     close(send_socket);

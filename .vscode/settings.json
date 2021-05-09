@@ -2,6 +2,7 @@
     "files.associations": {
         "un.h": "c",
         "socket.h": "c",
-        "unistd.h": "c"
+        "unistd.h": "c",
+        "stdio.h": "c"
     }
 }
