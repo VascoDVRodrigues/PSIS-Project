@@ -1,0 +1,17 @@
+CC=gcc
+CFLAGS= -Wall -std=c99
+
+# $^ significa todas as dependencias
+# $@ significa o nome da task, aqui representa KVS-localServer
+KVS-localServer: KVS-localServer.c linkedList-lib.c
+	$(CC) $^ -o $@ $(CFLAGS) 
+
+#METER AQUI TODAS AS APPS A COMPILAR
+apps: $(addprefix app, 1 2)
+
+app%: app%.c KVS-lib.c
+	$(CC) $^ -o $@ $(CFLAGS) 
+
+clean:
+	rm KVS-localServer app1 app2 -f
+
