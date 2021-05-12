@@ -38,13 +38,13 @@ Node *searchNode(char *key, Node *head) {
 	}
 }
 
-void deleteNode(char *key, Node *head) {
+Node *deleteNode(char *key, Node *head) {
 	Node *current_node = head;
 	Node *aux_node = NULL;
 	if (strcmp(head->key, key) == 0) {
 		head = head->next;
 		free(current_node);
-		return;
+		return head;
 	} else {
 		while (current_node->next != NULL) {
 			if (strcmp(current_node->next->key, key) == 0) {
@@ -55,6 +55,7 @@ void deleteNode(char *key, Node *head) {
 			current_node = current_node->next;
 		}
 	}
+	return head;
 }
 
 void printList(Node *head) {

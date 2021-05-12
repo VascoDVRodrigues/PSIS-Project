@@ -26,8 +26,22 @@ int establish_connection(char *group_id, char *secret) {
 		perror("connecting stream socket");
 		return -2;
 	}
-	printf("Connected to local server\n");
-	return 0;
+	// printf("Connected to local server\n");
+	Package pack;
+	strcpy(pack.value, group_id);
+	strcpy(pack.key, secret);
+	send(local_server_sock, (void *)&pack, sizeof(pack), 0);
+
+	recv(local_server_sock, (void *)&pack, sizeof(pack), 0);
+	if (strcmp(pack.key, "accepted") == 0) {
+		return 0;
+	} else if (strcmp(pack.key, "declined-group") == 0) {
+		// close(local_server_sock);
+		return -2;	// grupo errado
+	} else if (strcmp(pack.key, "declined-key") == 0) {
+		// close(local_server_sock);
+		return -3;	// chave errada
+	}
 }
 
 int put_value(char *key, char *value) {
@@ -77,6 +91,7 @@ int delete_value(char *key) {
 	Package a;
 	a.mode = 2;
 	strcpy(a.key, key);
+	strcpy(a.value, "empty");
 
 	// printf("%s %d\n", a.key, a.mode);
 
@@ -94,4 +109,15 @@ int delete_value(char *key) {
 	return -1;
 }
 int register_callback(char *key, void (*callback_function)(char *)) {}
-int close_connection() { printf("Hello World\n"); }
+int close_connection() {
+	/*Package a;
+	a.mode = 3;
+
+	strcpy(a.key, "empty");
+	strcpy(a.value, "empty");
+
+	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
+		perror("writing on stream socket");
+	}*/
+	close(local_server_sock);
+}

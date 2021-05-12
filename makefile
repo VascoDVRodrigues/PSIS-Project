@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS= -Wall -std=c99
+CFLAGS= -lpthread
 
 # $^ significa todas as dependencias
 # $@ significa o nome da task, aqui representa KVS-localServer
@@ -12,6 +12,9 @@ apps: $(addprefix app, 1 2)
 app%: app%.c KVS-lib.c
 	$(CC) $^ -o $@ $(CFLAGS) 
 
+teste: teste.c
+	$(CC) $^ -o $@ $(CFLAGS) 
+
 clean:
-	rm KVS-localServer app1 app2 -f
+	rm KVS-localServer app1 app2 teste -f
 

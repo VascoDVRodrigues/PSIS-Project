@@ -5,14 +5,23 @@ int main() {
 	char secret[100];
 	char option[20];
 	char *result;
-	strcpy(group_id, "1234");
-	strcpy(secret, "olá");
-	int a = establish_connection(group_id, secret);
-	if (a == 0) {
-		printf("Established connection\n");
-	} else {
-		printf("nao funca");
+	int a;
+	while (1) {
+		printf("Enter GroupId: ");
+		scanf("%s", group_id);
+		printf("Enter Secret: ");
+		scanf("%s", secret);
+		a = establish_connection(group_id, secret);
+		if (a == 0) {
+			printf("Established connection\n");
+			break;
+		} else if (a == -2) {
+			printf("No Group with same GroupId! :(\n");
+		} else if (a == -3) {
+			printf("Wrong Key! :(\n");
+		}
 	}
+
 	while (1) {
 		printf("Enter option: ");
 		scanf("%s %s %s", option, group_id, secret);
@@ -32,6 +41,13 @@ int main() {
 			}
 		} else if (strcmp(option, "delete") == 0) {
 			a = delete_value(group_id);
+			if (a == 0) {
+				printf("funca\n");
+			} else {
+				printf("nao funca\n");
+			}
+		} else if (strcmp(option, "close") == 0) {
+			a = close_connection();
 			if (a == 0) {
 				printf("funca\n");
 			} else {

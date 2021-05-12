@@ -14,8 +14,9 @@ int main() {
 	head = insertNode("123525t", "fdafaa", head);
 	printList(head);
 	printf("-------------\n");
-	deleteNode("23", head);
+	head = deleteNode("123525t", head);
 	printList(head);
+
 	printNode(searchNode("ola", head));
 
 	return 0;
