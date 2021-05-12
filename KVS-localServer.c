@@ -11,7 +11,7 @@
 
 #define SOCKNAME "/tmp/socket1"
 #define MESSAGE_SIZE 100
-#define MAX_CONNECTIONS 5
+#define MAX_CONNECTIONS 10
 
 typedef struct package {
 	int mode;
@@ -133,6 +133,7 @@ int main() {
 			if (client_thread_status[i] == 0) {
 				client_thread_status[i] = 1;
 				pthread_create(&client_threads[i], NULL, (void *)func, (void *)&client);
+				break;
 			}
 		}
 		// nao ha conexões suficientes
