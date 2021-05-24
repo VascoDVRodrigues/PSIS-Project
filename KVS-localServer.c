@@ -21,23 +21,48 @@ typedef struct package {
 	char value[MESSAGE_SIZE];
 } Package;
 
+typedef struct auth_package {
+	char groupID[1024];
+	char secret[1024];
+	int mode;
+} Auth_Package;
+
+typedef struct _server_info_pack {
+	int socket;
+	struct sockaddr_in adress;
+} Server_info_pack;
+
 Node *head;
 
 void *server_UI(void *arg) {
+	Server_info_pack auth_server = *(Server_info_pack *)arg;
+
 	int option = 0;
+	Auth_Package pack;
 	while (1) {
 		printf("\n\tKVS Local Server\n");
-		printf("1. Create Group\n2. Delete Group\n3. Show group info");
-		printf("4. Show app status\n5. Exit");
-		printf("Choose one option: ");
+		printf("1. Create Group\n2. Delete Group\n3. Show group info\n");
+		printf("4. Show app status\n5. Exit\n");
+		printf("\tChoose one option: ");
 		scanf("%d", &option);
 		if (option == 1) {
+			printf("Group identifier: ");
+			scanf("%s", pack.groupID);
+
+			sprintf(pack.secret, "some secret");
+			printf("Secret: %s\n", pack.secret);
+
+			pack.mode = 1;	// mode 1 ==> creating new group
+			// Group created, send info to auth server
+			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 		} else if (option == 2) {
 			/* code */
 		} else if (option == 3) {
 			/* code */
 		} else if (option == 4) {
 			/* code */
+		} else if (option == 5) {
+			break;
 		}
 	}
 }
@@ -90,6 +115,7 @@ int main() {
 	pthread_t client_threads[MAX_CONNECTIONS];
 	int client_thread_status[MAX_CONNECTIONS];
 	pthread_t auth_server_thread;
+
 	char mock_secret[30];
 	char mock_groupid[30];
 	strcpy(mock_secret, "12345678");
@@ -135,11 +161,14 @@ int main() {
 	endereco_auth.sin_family = AF_INET;
 	endereco_auth.sin_port = htons(8080);
 	inet_aton("127.0.0.1", &endereco_auth.sin_addr);
+	printf("Auth server socket created!! :)");
 
-	if (sendto(auth_socket, "ola", (4), 0, (struct sockaddr *)&endereco_auth, sizeof(endereco_auth)) < 0) {
-		perror("sendto auth server");
-		exit(2);
-	}
+	Server_info_pack auth_info;
+	auth_info.socket = auth_socket;
+	auth_info.adress = endereco_auth;
+
+	pthread_t serverUI_thread;
+	pthread_create(&serverUI_thread, NULL, (void *)server_UI, (void *)&auth_info);
 	//////////localserver -- authserver socket///////////////////////
 
 	listen(send_socket, 10);

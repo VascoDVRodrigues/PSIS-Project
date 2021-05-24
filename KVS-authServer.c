@@ -8,18 +8,31 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include "linkedList-lib.h"
+
 typedef struct package {
 	char key[1024];
 	char value[1024];
 } Package;
 
+typedef struct auth_package {
+	char groupID[1024];
+	char secret[1024];
+	int mode;
+} Auth_Package;
+
 #define MAX_CONNECTIONS 10
+
+Node *head;
 
 int main() {
 	pthread_t local_servers[MAX_CONNECTIONS];
 	struct sockaddr_in server, client;
 	int fd, client_address_size;
 	char buf[32];
+	Auth_Package pack;
+
+	head = create_LinkedList();
 
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -42,12 +55,20 @@ int main() {
 	client_address_size = sizeof(client);
 
 	while (1) {
-		if (recvfrom(fd, buf, sizeof(buf), 0, (struct sockaddr *)&client, &client_address_size) < 0) {
+		if (recvfrom(fd, &pack, sizeof(pack), 0, (struct sockaddr *)&client, &client_address_size) < 0) {
 			perror("recvfrom()");
 			exit(4);
 		}
 
-		printf("Received: %s\n", buf);
+		printf("Received: \n\tgroupID:%s\n\tsecret:%s\n\tmode:%d\n", pack.groupID, pack.secret, pack.mode);
+
+		if (pack.mode==1) { //a new group has been created, save the info
+			/* code */
+		} else if (pack.mode==2) {
+			/* code */
+		} else {
+			/* code */
+		}
 	}
 
 	close(fd);
