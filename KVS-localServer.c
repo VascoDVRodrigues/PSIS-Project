@@ -1,3 +1,5 @@
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,14 +23,32 @@ typedef struct package {
 
 Node *head;
 
+void *server_UI(void *arg) {
+	int option = 0;
+	while (1) {
+		printf("\n\tKVS Local Server\n");
+		printf("1. Create Group\n2. Delete Group\n3. Show group info");
+		printf("4. Show app status\n5. Exit");
+		printf("Choose one option: ");
+		scanf("%d", &option);
+		if (option == 1) {
+		} else if (option == 2) {
+			/* code */
+		} else if (option == 3) {
+			/* code */
+		} else if (option == 4) {
+			/* code */
+		}
+	}
+}
+
 void *func(void *arg) {
 	int client = *(int *)arg;
 	Package client_package;
 	while (1) {
-		printf("boas");
 		int n = recv(client, (void *)&client_package, sizeof(client_package), 0);
 		printf("Received %d bytes, mode: %d key: %s value: %s\n", n, client_package.mode, client_package.key, client_package.value);
-		if (client_package.mode == 1 && n > 0) {
+		if (client_package.mode == 1 && n > 0) {  // PUT VALUE
 			if (searchNode(client_package.key, head) == NULL) {
 				head = insertNode(client_package.key, client_package.value, head);
 			} else {
@@ -36,7 +56,7 @@ void *func(void *arg) {
 			}
 			strcpy(client_package.key, "accepted");
 			send(client, (void *)&client_package, sizeof(client_package), 0);
-		} else if (client_package.mode == 0 && n > 0) {
+		} else if (client_package.mode == 0 && n > 0) {	 // GET VALUE
 			Node *aux = searchNode(client_package.key, head);
 			if (aux == NULL) {
 				strcpy(client_package.key, "declined");
@@ -45,7 +65,7 @@ void *func(void *arg) {
 				strcpy(client_package.key, "accepted");
 			}
 			send(client, (void *)&client_package, sizeof(client_package), 0);
-		} else if (client_package.mode == 2 && n > 0) {
+		} else if (client_package.mode == 2 && n > 0) {	 // DELETE VALUE
 			if (searchNode(client_package.key, head) == NULL) {
 				strcpy(client_package.key, "declined");
 			} else {
@@ -62,6 +82,7 @@ void *func(void *arg) {
 		}
 		printList(head);
 	}
+
 	return NULL;
 }
 // pthread_equal(pthread_t t1, pthread_t t2);
@@ -77,6 +98,7 @@ int main() {
 	head = create_LinkedList();
 	Package client_package;
 
+	//////////client -- localserver socket///////////////////////
 	int send_socket;
 	struct sockaddr_un server;
 	int client, n;
@@ -100,6 +122,25 @@ int main() {
 	}
 
 	printf("Socket created, has name %s\n", server.sun_path);
+	//////////client -- localserver socket///////////////////////
+
+	//////////localserver -- authserver socket///////////////////////
+	int auth_socket = 0;
+	if ((auth_socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		perror("Auth socket creation");
+		exit(1);
+	}
+
+	struct sockaddr_in endereco_auth;
+	endereco_auth.sin_family = AF_INET;
+	endereco_auth.sin_port = htons(8080);
+	inet_aton("127.0.0.1", &endereco_auth.sin_addr);
+
+	if (sendto(auth_socket, "ola", (4), 0, (struct sockaddr *)&endereco_auth, sizeof(endereco_auth)) < 0) {
+		perror("sendto auth server");
+		exit(2);
+	}
+	//////////localserver -- authserver socket///////////////////////
 
 	listen(send_socket, 10);
 	printf("Waiting for connections!!\n");
@@ -116,7 +157,6 @@ int main() {
 
 			if (strcmp(mock_groupid, client_package.value) != 0) {	// ver se o grupo existe
 				strcpy(client_package.key, "declined-group");
-
 			} else {
 				if (strcmp(mock_secret, client_package.key) != 0) {	 // password errada
 					strcpy(client_package.key, "declined-key");
