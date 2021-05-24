@@ -1,38 +1,18 @@
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <unistd.h>
-
 #include "linkedList-lib.h"
 
-#define SOCKNAME "/tmp/socket1"
-#define MESSAGE_SIZE 100
-#define MAX_CONNECTIONS 10
-
-typedef struct package {
-	int mode;
-	char key[MESSAGE_SIZE];
-	char value[MESSAGE_SIZE];
-} Package;
-
-typedef struct auth_package {
-	char groupID[1024];
-	char secret[1024];
-	int mode;
-} Auth_Package;
-
-typedef struct _server_info_pack {
-	int socket;
-	struct sockaddr_in adress;
-} Server_info_pack;
+#include "defs.h"
 
 Node *head;
+
+char *randomString(int size) {
+	char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890\0";
+	char *randString = calloc(size, sizeof(char));
+	for (int i = 0; i < size; i++) {
+		randString[i] = chars[rand() % strlen(chars)];
+	}
+	randString[size + 1] = '\0';
+	return randString;
+}
 
 void *server_UI(void *arg) {
 	Server_info_pack auth_server = *(Server_info_pack *)arg;
@@ -49,18 +29,33 @@ void *server_UI(void *arg) {
 			printf("Group identifier: ");
 			scanf("%s", pack.groupID);
 
-			sprintf(pack.secret, "some secret");
+			strcpy(pack.secret, randomString(5));
 			printf("Secret: %s\n", pack.secret);
 
 			pack.mode = 1;	// mode 1 ==> creating new group
 			// Group created, send info to auth server
 			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
-		} else if (option == 2) {
-			/* code */
-		} else if (option == 3) {
-			/* code */
-		} else if (option == 4) {
-			/* code */
+
+			recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
+			printf("Received: %s\n", pack.groupID);
+		} else if (option == 2) {  // Delete group
+			printf("Group ID to delete: ");
+			scanf("%s", pack.groupID);
+			pack.mode = 2;
+			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
+
+			recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
+			printf("Received: %s\n", pack.groupID);
+		} else if (option == 3) {  // Show group info
+			printf("Group ID to view info: ");
+			scanf("%s", pack.groupID);
+			pack.mode = 3;
+			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
+
+			recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
+			printf("Received: \nGroupID: %s\nSecret: %s\n", pack.groupID, pack.secret);
+		} else if (option == 4) {  // Show app status
+								   /* code */
 		} else if (option == 5) {
 			break;
 		}
@@ -112,17 +107,14 @@ void *func(void *arg) {
 }
 // pthread_equal(pthread_t t1, pthread_t t2);
 int main() {
+	srand(time(NULL));
 	pthread_t client_threads[MAX_CONNECTIONS];
 	int client_thread_status[MAX_CONNECTIONS];
 	pthread_t auth_server_thread;
 
-	char mock_secret[30];
-	char mock_groupid[30];
-	strcpy(mock_secret, "12345678");
-	strcpy(mock_groupid, "admin");
-
 	head = create_LinkedList();
 	Package client_package;
+	Auth_Package pack;
 
 	//////////client -- localserver socket///////////////////////
 	int send_socket;
@@ -163,13 +155,13 @@ int main() {
 	inet_aton("127.0.0.1", &endereco_auth.sin_addr);
 	printf("Auth server socket created!! :)");
 
-	Server_info_pack auth_info;
-	auth_info.socket = auth_socket;
-	auth_info.adress = endereco_auth;
+	Server_info_pack auth_server_info;
+	auth_server_info.socket = auth_socket;
+	auth_server_info.adress = endereco_auth;
+	//////////localserver -- authserver socket///////////////////////
 
 	pthread_t serverUI_thread;
-	pthread_create(&serverUI_thread, NULL, (void *)server_UI, (void *)&auth_info);
-	//////////localserver -- authserver socket///////////////////////
+	pthread_create(&serverUI_thread, NULL, (void *)server_UI, (void *)&auth_server_info);
 
 	listen(send_socket, 10);
 	printf("Waiting for connections!!\n");
@@ -184,17 +176,33 @@ int main() {
 			n = recv(client, (void *)&client_package, sizeof(client_package), 0);
 			printf("Client %d wants to connect to group %s, with secret %s\n", client, client_package.value, client_package.key);
 
-			if (strcmp(mock_groupid, client_package.value) != 0) {	// ver se o grupo existe
-				strcpy(client_package.key, "declined-group");
+			// authenticate with auth server
+			strcpy(pack.groupID, client_package.value);
+			strcpy(pack.secret, client_package.key);
+			pack.mode = 10;
+			sendto(auth_socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&endereco_auth, sizeof(endereco_auth));
+
+			recv(auth_socket, (void *)&pack, sizeof(pack), 0);
+			if (pack.mode == 1) {  // authentication was ok
+				printf("Autenticated sucessfully\n");
+				// comunicate to client
+				strcpy(client_package.key, "accepted");
+				send(client, (void *)&client_package, sizeof(client_package), 0);
+
+				//the kvslib will send the client PID
+				//recv(auth_socket, (void *)&pack, sizeof(pack), 0);
+				break;
 			} else {
-				if (strcmp(mock_secret, client_package.key) != 0) {	 // password errada
-					strcpy(client_package.key, "declined-key");
-				} else {
-					strcpy(client_package.key, "accepted");
-					send(client, (void *)&client_package, sizeof(client_package), 0);
-					break;
+				if (strcmp(pack.groupID, "accepted-group") == 0) {
+					if (strcmp(pack.secret, "declined-key") == 0) {	 // correct group but wrong key
+						strcpy(client_package.key, "accepted-group");
+						strcpy(client_package.value, "declined-key");
+					}
+				} else if (strcmp(pack.groupID, "declined-group") == 0) {
+					strcpy(client_package.key, "declined-group");
 				}
 			}
+
 			send(client, (void *)&client_package, sizeof(client_package), 0);
 		}
 

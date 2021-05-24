@@ -30,12 +30,12 @@ Node *searchNode(char *key, Node *head) {
 
 	Node *current = head;
 	while (current != NULL) {
-		if (strcmp(current->key, key) == 0)	 // Encontramos o nó
-		{
+		if (strcmp(current->key, key) == 0) {  // Encontramos o nó
 			return current;
 		}
 		current = current->next;
 	}
+	return NULL;
 }
 
 Node *deleteNode(char *key, Node *head) {
@@ -51,6 +51,7 @@ Node *deleteNode(char *key, Node *head) {
 				aux_node = current_node->next;
 				current_node->next = current_node->next->next;
 				free(aux_node);
+				return head;
 			}
 			current_node = current_node->next;
 		}
@@ -60,14 +61,17 @@ Node *deleteNode(char *key, Node *head) {
 
 void printList(Node *head) {
 	Node *current = head;
+	printf("HEAD->");
 	while (current != NULL) {
-		printf("Key: %s, Value: %s\n", current->key, current->value);
+		printf("%s|%s", current->key, current->value);
 		current = current->next;
+		printf("-->\n");
 	}
+	printf("NULL\n");
 }
 
 void printNode(Node *node) {
-	printf("Node-> Key: %s\tValue: %s\n", node->key, node->value);
+	printf("Node-> %s|%s\n", node->key, node->value);
 	return;
 }
 

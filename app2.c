@@ -39,6 +39,7 @@ int main() {
 			} else {
 				printf("nao funca\n");
 			}
+			printf("Value: %s\n", result);
 		} else if (strcmp(option, "delete") == 0) {
 			a = delete_value(group_id);
 			if (a == 0) {
@@ -53,6 +54,7 @@ int main() {
 			} else {
 				printf("nao funca\n");
 			}
+			exit(1);
 		}
 	}
 

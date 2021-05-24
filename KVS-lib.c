@@ -1,16 +1,9 @@
 #include "KVS-lib.h"
 
-#define SOCKNAME "/tmp/socket1"
-#define MESSAGE_SIZE 100
+#include "defs.h"
 
 int local_server_sock;
 struct sockaddr_un local_server;
-
-typedef struct package {
-	int mode;
-	char key[MESSAGE_SIZE];
-	char value[MESSAGE_SIZE];
-} Package;
 
 int establish_connection(char *group_id, char *secret) {
 	local_server_sock = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -34,7 +27,10 @@ int establish_connection(char *group_id, char *secret) {
 
 	recv(local_server_sock, (void *)&pack, sizeof(pack), 0);
 	if (strcmp(pack.key, "accepted") == 0) {
+		// must save the client PID and send it to server
 		return 0;
+	} else if (strcmp(pack.key, "accepted-group") == 0) {
+		return -1;
 	} else if (strcmp(pack.key, "declined-group") == 0) {
 		// close(local_server_sock);
 		return -2;	// grupo errado
@@ -69,7 +65,7 @@ int get_value(char *key, char **value) {
 	a.mode = 0;
 	strcpy(a.key, key);
 
-	printf("%s %d\n", a.key, a.mode);
+	// printf("%s %d\n", a.key, a.mode);
 
 	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		perror("writing on stream socket");
