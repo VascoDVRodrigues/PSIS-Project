@@ -20,7 +20,7 @@ int establish_connection(char *group_id, char *secret) {
 		return -2;
 	}
 	// printf("Connected to local server\n");
-	Package pack;
+	App_Package pack;
 	strcpy(pack.value, group_id);
 	strcpy(pack.key, secret);
 	send(local_server_sock, (void *)&pack, sizeof(pack), 0);
@@ -28,6 +28,9 @@ int establish_connection(char *group_id, char *secret) {
 	recv(local_server_sock, (void *)&pack, sizeof(pack), 0);
 	if (strcmp(pack.key, "accepted") == 0) {
 		// must save the client PID and send it to server
+		printf("pid: %d\n", getpid());
+		pack.mode = getpid();
+		send(local_server_sock, (void *)&pack, sizeof(pack), 0);
 		return 0;
 	} else if (strcmp(pack.key, "accepted-group") == 0) {
 		return -1;
@@ -41,7 +44,7 @@ int establish_connection(char *group_id, char *secret) {
 }
 
 int put_value(char *key, char *value) {
-	Package a;
+	App_Package a;
 	a.mode = 1;
 	strcpy(a.key, key);
 	strcpy(a.value, value);
@@ -61,7 +64,7 @@ int put_value(char *key, char *value) {
 	}
 }
 int get_value(char *key, char **value) {
-	Package a;
+	App_Package a;
 	a.mode = 0;
 	strcpy(a.key, key);
 
@@ -84,7 +87,7 @@ int get_value(char *key, char **value) {
 	// printf("Value: %s\tKey: %s\n", a.value, a.key);
 }
 int delete_value(char *key) {
-	Package a;
+	App_Package a;
 	a.mode = 2;
 	strcpy(a.key, key);
 	strcpy(a.value, "empty");

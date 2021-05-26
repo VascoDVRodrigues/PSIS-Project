@@ -1,7 +1,7 @@
 #include "linkedList-lib.h"
 
 int main() {
-	Node *list1, *list2;
+	SubNode *list1, *list2;
 	char str1[4] = "ola", str2[4] = "ola", str3[4] = "aaa";
 	list1 = create_LinkedList();
 	list2 = create_LinkedList();

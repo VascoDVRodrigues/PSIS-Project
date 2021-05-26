@@ -1,9 +1,8 @@
-#include "linkedList-lib.h"
-
 #include "defs.h"
 
-Node *head;
+MainNode *groupsList;
 
+// Cria e retorna uma random string com tamanho size
 char *randomString(int size) {
 	char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890\0";
 	char *randString = calloc(size, sizeof(char));
@@ -12,6 +11,53 @@ char *randomString(int size) {
 	}
 	randString[size + 1] = '\0';
 	return randString;
+}
+
+/*
+Sets up local server
+	creates and binds socket to comunicate with clients
+	creates socket to comunicate with authServer
+Returns:
+0: no errors
+-1: Error creating stream socket
+-2: Error binding stream socket
+-3: Error Auth socket creation
+*/
+int setup_LocalServer(Server_info_pack *clients, Server_info_pack_INET *auth_server) {
+	groupsList = createMainList();
+
+	//////////client -- localserver socket///////////////////////
+	clients->adress.sun_family = AF_UNIX;
+	strcpy(clients->adress.sun_path, SOCKNAME);
+
+	unlink(SOCKNAME);
+
+	clients->socket = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (clients->socket < 0) {
+		perror("Error creating stream socket");
+		return -1;
+	}
+
+	if (bind(clients->socket, (struct sockaddr *)&clients->adress, sizeof(struct sockaddr_un))) {
+		perror("Error binding stream socket");
+		return -2;
+	}
+
+	printf("Socket created, has name %s\n", clients->adress.sun_path);
+	//////////client -- localserver socket///////////////////////
+
+	//////////localserver -- authserver socket///////////////////////
+	if ((auth_server->socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		perror("Auth socket creation");
+		return -3;
+	}
+
+	auth_server->adress.sin_family = AF_INET;
+	auth_server->adress.sin_port = htons(8080);
+	inet_aton("127.0.0.1", &auth_server->adress.sin_addr);
+	printf("Auth server socket created!! :)");
+	//////////localserver -- authserver socket///////////////////////
+	return 0;
 }
 
 void *server_UI(void *arg) {
@@ -62,45 +108,46 @@ void *server_UI(void *arg) {
 	}
 }
 
-void *func(void *arg) {
-	int client = *(int *)arg;
-	Package client_package;
+void *client_handler(void *arg) {
+	Client_info client = *(Client_info *)arg;
+
+	App_Package client_package;
 	while (1) {
-		int n = recv(client, (void *)&client_package, sizeof(client_package), 0);
+		int n = recv(client.socket, (void *)&client_package, sizeof(client_package), 0);
 		printf("Received %d bytes, mode: %d key: %s value: %s\n", n, client_package.mode, client_package.key, client_package.value);
 		if (client_package.mode == 1 && n > 0) {  // PUT VALUE
-			if (searchNode(client_package.key, head) == NULL) {
-				head = insertNode(client_package.key, client_package.value, head);
+			if (searchNode(client_package.key, client.connected_group->GroupHead) == NULL) {
+				client.connected_group->GroupHead = insertNode(client_package.key, client_package.value, client.connected_group->GroupHead);
 			} else {
-				updateValue(searchNode(client_package.key, head), client_package.value);
+				updateValue(searchNode(client_package.key, client.connected_group->GroupHead), client_package.value);
 			}
 			strcpy(client_package.key, "accepted");
-			send(client, (void *)&client_package, sizeof(client_package), 0);
+			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
 		} else if (client_package.mode == 0 && n > 0) {	 // GET VALUE
-			Node *aux = searchNode(client_package.key, head);
+			SubNode *aux = searchNode(client_package.key, client.connected_group->GroupHead);
 			if (aux == NULL) {
 				strcpy(client_package.key, "declined");
 			} else {
 				strcpy(client_package.value, aux->value);
 				strcpy(client_package.key, "accepted");
 			}
-			send(client, (void *)&client_package, sizeof(client_package), 0);
+			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
 		} else if (client_package.mode == 2 && n > 0) {	 // DELETE VALUE
-			if (searchNode(client_package.key, head) == NULL) {
+			if (searchNode(client_package.key, client.connected_group->GroupHead) == NULL) {
 				strcpy(client_package.key, "declined");
 			} else {
-				head = deleteNode(client_package.key, head);
+				client.connected_group->GroupHead = deleteNode(client_package.key, client.connected_group->GroupHead);
 				strcpy(client_package.key, "accepted");
 			}
-			send(client, (void *)&client_package, sizeof(client_package), 0);
+			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
 		} else if (n == 0) {
 			break;
 		} else {
 			printf("else\n");
 			strcpy(client_package.key, "declined");
-			send(client, (void *)&client_package, sizeof(client_package), 0);
+			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
 		}
-		printList(head);
+		printList(client.connected_group->GroupHead);
 	}
 
 	return NULL;
@@ -110,89 +157,68 @@ int main() {
 	srand(time(NULL));
 	pthread_t client_threads[MAX_CONNECTIONS];
 	int client_thread_status[MAX_CONNECTIONS];
-	pthread_t auth_server_thread;
-
-	head = create_LinkedList();
-	Package client_package;
-	Auth_Package pack;
-
-	//////////client -- localserver socket///////////////////////
-	int send_socket;
-	struct sockaddr_un server;
-	int client, n;
-	server.sun_family = AF_UNIX;
-	strcpy(server.sun_path, SOCKNAME);
-
-	unlink(SOCKNAME);
 	for (int i = 0; i < MAX_CONNECTIONS; i++) {
 		client_thread_status[i] = 0;
 	}
 
-	send_socket = socket(AF_UNIX, SOCK_STREAM, 0);
-	if (send_socket < 0) {
-		perror("Error creating socket");
-		exit(1);
-	}
-
-	if (bind(send_socket, (struct sockaddr *)&server, sizeof(struct sockaddr_un))) {
-		perror("Error binding stream socket");
-		exit(1);
-	}
-
-	printf("Socket created, has name %s\n", server.sun_path);
-	//////////client -- localserver socket///////////////////////
-
-	//////////localserver -- authserver socket///////////////////////
-	int auth_socket = 0;
-	if ((auth_socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-		perror("Auth socket creation");
-		exit(1);
-	}
-
-	struct sockaddr_in endereco_auth;
-	endereco_auth.sin_family = AF_INET;
-	endereco_auth.sin_port = htons(8080);
-	inet_aton("127.0.0.1", &endereco_auth.sin_addr);
-	printf("Auth server socket created!! :)");
-
-	Server_info_pack auth_server_info;
-	auth_server_info.socket = auth_socket;
-	auth_server_info.adress = endereco_auth;
-	//////////localserver -- authserver socket///////////////////////
+	Server_info_pack clients;
+	Server_info_pack_INET auth_server;
+	setup_LocalServer(&clients, &auth_server);
 
 	pthread_t serverUI_thread;
-	pthread_create(&serverUI_thread, NULL, (void *)server_UI, (void *)&auth_server_info);
+	pthread_create(&serverUI_thread, NULL, (void *)server_UI, (void *)&auth_server);
 
-	listen(send_socket, 10);
+	listen(clients.socket, 10);
 	printf("Waiting for connections!!\n");
 
+	int newClient_socket = 0, n = 0;
+	Auth_Package pack;
+	App_Package client_package;
 	while (1) {
 		while (1) {
-			client = accept(send_socket, NULL, NULL);
-			if (client != -1) {
-				printf("Connected to %d\n", client);
+			newClient_socket = accept(clients.socket, NULL, NULL);
+			if (newClient_socket != -1) {
+				printf("Connected to %d\n", newClient_socket);
 			}
 
-			n = recv(client, (void *)&client_package, sizeof(client_package), 0);
-			printf("Client %d wants to connect to group %s, with secret %s\n", client, client_package.value, client_package.key);
+			n = recv(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
+			printf("Client %d wants to connect to group %s, with secret %s\n", newClient_socket, client_package.value, client_package.key);
 
 			// authenticate with auth server
 			strcpy(pack.groupID, client_package.value);
 			strcpy(pack.secret, client_package.key);
 			pack.mode = 10;
-			sendto(auth_socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&endereco_auth, sizeof(endereco_auth));
+			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 
-			recv(auth_socket, (void *)&pack, sizeof(pack), 0);
+			recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
 			if (pack.mode == 1) {  // authentication was ok
 				printf("Autenticated sucessfully\n");
+
+				// Since the group exists we should add it to the groups list
+				groupsList = insertGroup((SubNode *)NULL, client_package.value, groupsList);
+
 				// comunicate to client
 				strcpy(client_package.key, "accepted");
-				send(client, (void *)&client_package, sizeof(client_package), 0);
+				send(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
 
-				//the kvslib will send the client PID
-				//recv(auth_socket, (void *)&pack, sizeof(pack), 0);
+				// the kvslib will send the client PID, in client_package.mode
+				recv(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
+
+				// Contruir o package que vai ser enviado para a thread que trata deste cliente
+				Client_info newClient;
+				newClient.socket = newClient_socket;
+				newClient.connected_group = searchGroup(client_package.value, groupsList);
+
+				// Finally start the client handler thread
+				for (int i = 0; i < MAX_CONNECTIONS; i++) {
+					if (client_thread_status[i] == 0) {
+						client_thread_status[i] = 1;
+						pthread_create(&client_threads[i], NULL, (void *)client_handler, (void *)&newClient);
+						break;
+					}
+				}
 				break;
-			} else {
+			} else {  // authentication was not ok
 				if (strcmp(pack.groupID, "accepted-group") == 0) {
 					if (strcmp(pack.secret, "declined-key") == 0) {	 // correct group but wrong key
 						strcpy(client_package.key, "accepted-group");
@@ -203,19 +229,10 @@ int main() {
 				}
 			}
 
-			send(client, (void *)&client_package, sizeof(client_package), 0);
+			send(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
 		}
-
-		for (int i = 0; i < MAX_CONNECTIONS; i++) {
-			if (client_thread_status[i] == 0) {
-				client_thread_status[i] = 1;
-				pthread_create(&client_threads[i], NULL, (void *)func, (void *)&client);
-				break;
-			}
-		}
-		// nao ha conexões suficientes
 	}
 
-	close(send_socket);
+	close(clients.socket);
 	unlink(SOCKNAME);
 }

@@ -1,7 +1,7 @@
 #include "defs.h"
-#include "linkedList-lib.h"
 
-Node *groups_list;
+// Aqui basta uma lista simples, pq so estamos a guardar 2 strings
+SubNode *groups_list;
 
 int main() {
 	pthread_t local_servers[MAX_CONNECTIONS];
@@ -33,13 +33,15 @@ int main() {
 	client_address_size = sizeof(client);
 
 	while (1) {
-		// printList(groups_list);
+		printList(groups_list);
+		printf("--------------------\n");
+
 		if (recvfrom(fd, &pack, sizeof(pack), 0, (struct sockaddr *)&client, &client_address_size) < 0) {
 			perror("recvfrom()");
 			exit(4);
 		}
 
-		printf("Received: \n\tgroupID:%s\n\tsecret:%s\n\tmode:%d\n", pack.groupID, pack.secret, pack.mode);
+		// printf("Received: \n\tgroupID:%s\n\tsecret:%s\n\tmode:%d\n", pack.groupID, pack.secret, pack.mode);
 
 		if (pack.mode == 1) {  // a new group has been created, save the info
 			// Checking if the groups exists
@@ -60,15 +62,15 @@ int main() {
 			strcpy(pack.groupID, "group-deleted");
 			strcpy(pack.secret, "group-deleted");
 		} else if (pack.mode == 3) {  // show group info
-			Node *aux = searchNode(pack.groupID, groups_list);
+			SubNode *aux = searchNode(pack.groupID, groups_list);
 			if (aux == NULL) {	// aka the group doesnt exist
-				strcpy(pack.groupID, "group-doenst-exist... :(");
-				strcpy(pack.secret, "group-doenst-exist... :(");
+				strcpy(pack.groupID, "group-doesnt-exist");
+				strcpy(pack.secret, "group-doesnt-exist");
 			} else {  // the group exists
 				strcpy(pack.secret, aux->value);
 			}
 		} else if (pack.mode == 10) {  // Client trying to authenticate
-			Node *aux = searchNode(pack.groupID, groups_list);
+			SubNode *aux = searchNode(pack.groupID, groups_list);
 			if (aux == NULL) {	// aka the group doesnt exist
 				strcpy(pack.groupID, "declined-group");
 				strcpy(pack.secret, "declined-group");
@@ -76,10 +78,10 @@ int main() {
 				// Check if password is correct
 				if (strcmp(pack.secret, aux->value) != 0) {	 // incorrect password
 					strcpy(pack.groupID, "accepted-group");
-					strcpy(pack.secret, "declined-key");
+					strcpy(pack.secret, "declined-secret");
 				} else {
 					strcpy(pack.groupID, "accepted-group");
-					strcpy(pack.secret, "accepted-key");
+					strcpy(pack.secret, "accepted-secret");
 					pack.mode = 1;	// authentication was valid
 				}
 			}
