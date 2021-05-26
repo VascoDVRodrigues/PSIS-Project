@@ -1,64 +1,26 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <unistd.h>
+#ifndef _LISTA_H
+#define _LISTA_H
 
-/* COMO USAR
-1o cria-se uma lista de grupos com createMainList()
+/* def for pointer casts */
+#define Item void *
 
-2o Cria-se uma lista de key|values correspondente a um grupo
+/* type definition for structure to hold list item */
+typedef struct _LinkedList LinkedList;
 
-3o Adiciona-se a lista de Key|values a lista de grupos com insertGroup()
-ou então passa-se NULL a insertGroup(), fica assim um grupo vazio
+LinkedList *createList(void);
 
-Para atualizar/apagar/adicionar um key|value primeiro de um certo grupo primeiro temos q se procurar esse grupo,
-com o objeto retornado já se pode fazer a operação desejada, por exemplo:
-	Apagar a key "CHAVE1" do grupo "GRUPOXX":
-		grupoXX = searchGroup("GRUPOXX", grupoXX);
-		grupoXX->GroupHead = deleteNode("CHAVE1", grupoXX->GroupHead);
-*/
+LinkedList *insertNode(LinkedList *head, Item data);
 
-typedef struct _node {
-	char *key;
-	char *value;
-	struct _node *next;
-} SubNode;
+LinkedList *deleteNode(LinkedList *head, Item data_to_delete, int compareItem(Item, Item), void freeItem(Item));
 
-typedef struct _main_node {
-	//Talvez por aqui malloc?
-	//Visto que quando este package e construido já se sabe qual o nome do grupo?
-	char groupID[1024];
-	struct _node *GroupHead;
-	struct _main_node *next;
-} MainNode;
+LinkedList *updateNode(LinkedList *head, Item data_to_update, Item update, int compareItem(Item, Item), void freeItem(Item));
 
-MainNode *createMainList();
+Item *searchNode(LinkedList *head, Item data_to_find, int compareItem(Item, Item));
 
-MainNode *insertGroup(SubNode *data, char groupID[], MainNode *head);
+int numItens(LinkedList *head);
 
-MainNode *searchGroup(char groupID[], MainNode *head);
+void printList(LinkedList *head, void printItem(Item), int tabs);
 
-MainNode *deleteGroup(char groupID[], MainNode *head);
+LinkedList *clearList(LinkedList *head, void freeItem(Item));
 
-void printGroups(MainNode *head);
-
-///////////////////////////////////////////////////////
-
-SubNode *create_LinkedList();
-
-SubNode *insertNode(char *key, char *value, SubNode *head);
-
-SubNode *searchNode(char *key, SubNode *head);
-
-SubNode *deleteNode(char *key, SubNode *head);
-
-int isEmpty(SubNode *node);
-
-void printList(SubNode *head);
-
-void printNode(SubNode *node);
-
-void updateValue(SubNode *node, char *newValue);
+#endif

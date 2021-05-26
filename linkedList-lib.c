@@ -1,116 +1,75 @@
 #include "linkedList-lib.h"
 
-MainNode *createMainList() {
-	MainNode *head = NULL;
-	return head;
-}
+#include <stdio.h>
+#include <stdlib.h>
+#include <strings.h>
 
-// insere uma lista na lista de listas
-MainNode *insertGroup(SubNode *data, char groupID[], MainNode *head) {
-	MainNode *node = (MainNode *)malloc(sizeof(MainNode));
-	strcpy(node->groupID, groupID);
-	node->GroupHead = data;
+struct _LinkedList {
+	Item item;
+	struct _LinkedList *next;
+};
+
+LinkedList *createList(void) { return NULL; }
+
+LinkedList *insertNode(LinkedList *head, Item data) {
+	LinkedList *node = (LinkedList *)malloc(sizeof(LinkedList));
+	node->item = data;
 	node->next = head;
 	return node;
 }
 
-MainNode *searchGroup(char groupID[], MainNode *head) {
+Item *searchNode(LinkedList *head, Item data_to_find, int compareItem(Item, Item)) {
+	if (head == NULL) {
+		return NULL;
+	}
+
+	LinkedList *current = head;
+
+	while (current != NULL) {
+		if (compareItem(data_to_find, current->item) == 1) {  // found
+			printf("found\n");
+			return current->item;
+		}
+		current = current->next;
+	}
+	return NULL;
+}
+
+LinkedList *updateNode(LinkedList *head, Item data_to_update, Item update, int compareItem(Item, Item), void freeItem(Item)) {
 	if (head == NULL) {
 		return head;
 	}
-	MainNode *current = head;
+
+	LinkedList *current = head;
+
 	while (current != NULL) {
-		if (strcmp(current->groupID, groupID) == 0) {  // Encontramos o nó
-			return current;
+		if (compareItem(data_to_update, current->item) == 1) {	// found
+			freeItem(current->item);							// apagar o item atual
+			// adicionar o item a atualizar
+			// NAO se apaga os apontadores
+			current->item = update;
+			return head;
 		}
 		current = current->next;
 	}
-	return NULL;
+	return head;  // retorna-se a cabeca pois se a data a dar update nao existir e se for retornado null depois perde-se a lista completa
 }
 
-MainNode *deleteGroup(char groupID[], MainNode *head) {
-	MainNode *current_node = head;
-	MainNode *aux_node = NULL;
-	if (strcmp(head->groupID, groupID) == 0) {
-		head = head->next;
-		// free(current_node);APAGAR A LISTA INTEIRA
-		return head;
-	} else {
-		while (current_node->next != NULL) {
-			if (strcmp(current_node->next->groupID, groupID) == 0) {
-				aux_node = current_node->next;
-				current_node->next = current_node->next->next;
-				// free(aux_node);APAGAR A LISTA INTEIRA
-				return head;
-			}
-			current_node = current_node->next;
-		}
-	}
-	return head;
-}
+LinkedList *deleteNode(LinkedList *head, Item data_to_delete, int compareItem(Item, Item), void freeItem(Item)) {
+	LinkedList *current_node = head;
+	LinkedList *aux_node = NULL;
 
-void printGroups(MainNode *head) {
-	MainNode *current = head;
-	printf("\tHEAD->");
-	while (current != NULL) {
-		printf("\t%s\n", current->groupID);
-		printList(current->GroupHead);
-		current = current->next;
-		printf("-->\n");
-	}
-	printf("\tNULL\n");
-}
-///////////////////////////////////////////////////////
-SubNode *create_LinkedList() {
-	SubNode *head = NULL;
-	return head;
-}
-
-int isEmpty(SubNode *node) {
-	if (node == NULL) {
-		return 1;
-	}
-	return 0;
-}
-
-SubNode *insertNode(char *key, char *value, SubNode *head) {
-	SubNode *node = (SubNode *)malloc(sizeof(SubNode));
-	node->key = (char *)malloc(100);
-	node->value = (char *)malloc(100);
-	strcpy(node->key, key);
-	strcpy(node->value, value);
-	node->next = head;
-	head = node;
-	return node;
-}
-
-SubNode *searchNode(char *key, SubNode *head) {
-	if (isEmpty(head)) {
-		return head;
-	}
-
-	SubNode *current = head;
-	while (current != NULL) {
-		if (strcmp(current->key, key) == 0) {  // Encontramos o nó
-			return current;
-		}
-		current = current->next;
-	}
-	return NULL;
-}
-
-SubNode *deleteNode(char *key, SubNode *head) {
-	SubNode *current_node = head;
-	SubNode *aux_node = NULL;
-	if (strcmp(head->key, key) == 0) {
-		head = head->next;
+	if (compareItem(head->item, data_to_delete)) {
+		head = current_node->next;
+		freeItem(current_node->item);
 		free(current_node);
 		return head;
 	} else {
 		while (current_node->next != NULL) {
-			if (strcmp(current_node->next->key, key) == 0) {
+			if (compareItem(current_node->next->item, data_to_delete)) {
 				aux_node = current_node->next;
 				current_node->next = current_node->next->next;
+				freeItem(aux_node->item);
 				free(aux_node);
 				return head;
 			}
@@ -120,23 +79,44 @@ SubNode *deleteNode(char *key, SubNode *head) {
 	return head;
 }
 
-void printList(SubNode *head) {
-	SubNode *current = head;
-	printf("HEAD->");
+int numItens(LinkedList *head) {
+	LinkedList *aux; /* auxiliar pointers to travel through the list */
+	int count = 0;
+	aux = head;
+
+	for (aux = head; aux != NULL; aux = aux->next) {
+		count++;
+	}
+
+	return count;
+}
+
+void printList(LinkedList *head, void printItem(Item), int tabs) {
+	if (head == NULL) {
+		printf("Empty List\n");
+		return;
+	}
+
+	LinkedList *current = head;
+	printf("\tHEAD->\n");
 	while (current != NULL) {
-		printf("%s|%s", current->key, current->value);
+		printItem(current->item);
 		current = current->next;
+		for (int i = 0; i < tabs; i++) {
+			printf("\t");
+		}
 		printf("-->\n");
 	}
-	printf("NULL\n");
+	printf("\tNULL\n");
 }
 
-void printNode(SubNode *node) {
-	printf("SubNode-> %s|%s\n", node->key, node->value);
-	return;
-}
+LinkedList *clearList(LinkedList *head, void freeItem(Item)) {
+	LinkedList *aux, *newhead; /* auxiliar pointers to travel through the list */
 
-void updateValue(SubNode *node, char *newValue) {
-	strcpy(node->value, newValue);
-	return;
+	for (aux = head; aux != NULL; aux = newhead) {
+		newhead = aux->next;
+		freeItem(aux->item);
+		free(aux);
+	}
+	return aux;
 }

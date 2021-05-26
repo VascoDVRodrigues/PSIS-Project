@@ -1,6 +1,30 @@
 #include "defs.h"
 
-MainNode *groupsList;
+LinkedList *groupsList;
+
+void printKV(Item item) {
+	KeyValue data = *(KeyValue *)item;
+	printf("%s|%s\n", data.key, data.value);
+	return;
+}
+
+void freeKeyValue(Item item) {
+	KeyValue *KV = (KeyValue *)item;
+	free(KV->value);
+	free(KV);
+	return;
+}
+
+int compareKeys(Item k1, Item k2) {
+	KeyValue data1 = *(KeyValue *)k1;
+	KeyValue data2 = *(KeyValue *)k2;
+
+	if (strcmp(data1.key, data2.key) == 0) {
+		return 1;
+	}
+
+	return 0;
+}
 
 // Cria e retorna uma random string com tamanho size
 char *randomString(int size) {
@@ -24,9 +48,9 @@ Returns:
 -3: Error Auth socket creation
 */
 int setup_LocalServer(Server_info_pack *clients, Server_info_pack_INET *auth_server) {
-	groupsList = createMainList();
+	groupsList = createList();
 
-	//////////client -- localserver socket///////////////////////
+	/// client -- localserver socket///////////////////////
 	clients->adress.sun_family = AF_UNIX;
 	strcpy(clients->adress.sun_path, SOCKNAME);
 
@@ -116,27 +140,45 @@ void *client_handler(void *arg) {
 		int n = recv(client.socket, (void *)&client_package, sizeof(client_package), 0);
 		printf("Received %d bytes, mode: %d key: %s value: %s\n", n, client_package.mode, client_package.key, client_package.value);
 		if (client_package.mode == 1 && n > 0) {  // PUT VALUE
-			if (searchNode(client_package.key, client.connected_group->GroupHead) == NULL) {
-				client.connected_group->GroupHead = insertNode(client_package.key, client_package.value, client.connected_group->GroupHead);
+			KeyValue *newData = calloc(1, sizeof(KeyValue));
+			strcpy(client_package.key, newData->key);
+			newData->value = calloc(strlen(client_package.key), sizeof(char));
+			strcpy(newData->value, client_package.value);
+
+			if (searchNode(client.connected_group->keyValue_List, newData, compareKeys) == NULL) {
+				// a key ainda n existe, guardar na lista de key|value
+				client.connected_group->keyValue_List = insertNode(client.connected_group->keyValue_List, (Item)&newData);
 			} else {
-				updateValue(searchNode(client_package.key, client.connected_group->GroupHead), client_package.value);
+				// Neste caso data to update e o proprio update sao iguais, pois a comparacão e feita tendo por base apenas a key
+				client.connected_group->keyValue_List =
+					updateNode(client.connected_group->keyValue_List, (Item)newData, (Item)newData, compareKeys, freeKeyValue);
 			}
+
 			strcpy(client_package.key, "accepted");
 			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
 		} else if (client_package.mode == 0 && n > 0) {	 // GET VALUE
-			SubNode *aux = searchNode(client_package.key, client.connected_group->GroupHead);
-			if (aux == NULL) {
+			KeyValue data_to_find;
+			strcpy(data_to_find.key, client_package.key);
+
+			KeyValue *data = (KeyValue*)searchNode(client.connected_group->keyValue_List, (Item)&data_to_find, compareKeys);
+
+			// SubNode *aux = searchNode(client_package.key, client.connected_group->GroupHead);
+			if (data == NULL) {
 				strcpy(client_package.key, "declined");
 			} else {
-				strcpy(client_package.value, aux->value);
+				strcpy(client_package.value, data->value);
 				strcpy(client_package.key, "accepted");
 			}
 			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
 		} else if (client_package.mode == 2 && n > 0) {	 // DELETE VALUE
-			if (searchNode(client_package.key, client.connected_group->GroupHead) == NULL) {
+			KeyValue data_to_delete;
+			strcpy(data_to_delete.key, client_package.key);
+
+			if (searchNode(client.connected_group->keyValue_List, (Item)&data_to_delete, compareKeys) == NULL) {
 				strcpy(client_package.key, "declined");
 			} else {
-				client.connected_group->GroupHead = deleteNode(client_package.key, client.connected_group->GroupHead);
+				client.connected_group->keyValue_List =
+					deleteNode(client.connected_group->keyValue_List, (Item)&data_to_delete, compareKeys, freeKeyValue);
 				strcpy(client_package.key, "accepted");
 			}
 			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
@@ -147,7 +189,7 @@ void *client_handler(void *arg) {
 			strcpy(client_package.key, "declined");
 			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
 		}
-		printList(client.connected_group->GroupHead);
+		printList(client.connected_group->keyValue_List, printKV, 0);
 	}
 
 	return NULL;
@@ -175,62 +217,67 @@ int main() {
 	Auth_Package pack;
 	App_Package client_package;
 	while (1) {
-		while (1) {
-			newClient_socket = accept(clients.socket, NULL, NULL);
-			if (newClient_socket != -1) {
-				printf("Connected to %d\n", newClient_socket);
-			}
+		// while (1) {
+		newClient_socket = accept(clients.socket, NULL, NULL);
+		if (newClient_socket != -1) {
+			printf("Connected to %d\n", newClient_socket);
+		}
 
-			n = recv(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
-			printf("Client %d wants to connect to group %s, with secret %s\n", newClient_socket, client_package.value, client_package.key);
+		n = recv(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
+		printf("Client %d wants to connect to group %s, with secret %s\n", newClient_socket, client_package.value, client_package.key);
 
-			// authenticate with auth server
-			strcpy(pack.groupID, client_package.value);
-			strcpy(pack.secret, client_package.key);
-			pack.mode = 10;
-			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
+		// authenticate with auth server
+		strcpy(pack.groupID, client_package.value);
+		strcpy(pack.secret, client_package.key);
+		pack.mode = 10;
+		sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 
-			recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
-			if (pack.mode == 1) {  // authentication was ok
-				printf("Autenticated sucessfully\n");
+		// process response from auth server
+		recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
+		if (pack.mode == 1) {  // authentication was ok
+			printf("Autenticated sucessfully\n");
 
-				// Since the group exists we should add it to the groups list
-				groupsList = insertGroup((SubNode *)NULL, client_package.value, groupsList);
+			// Since the group exists we should add it to the groups list
+			Grupo *newGroup = calloc(1, sizeof(Grupo));
+			newGroup->keyValue_List = createList();	 // criar uma lista para guardar as key|value
+			newGroup->n_keyValues = 0;
+			strcpy(newGroup->groupID, client_package.value);
+			groupsList = insertNode(groupsList, (Item)newGroup);
 
-				// comunicate to client
-				strcpy(client_package.key, "accepted");
-				send(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
+			// comunicate to client
+			strcpy(client_package.key, "accepted");
+			send(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
 
-				// the kvslib will send the client PID, in client_package.mode
-				recv(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
+			// the kvslib will send the client PID, in client_package.mode
+			recv(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
 
-				// Contruir o package que vai ser enviado para a thread que trata deste cliente
-				Client_info newClient;
-				newClient.socket = newClient_socket;
-				newClient.connected_group = searchGroup(client_package.value, groupsList);
+			// Contruir o package que vai ser enviado para a thread que trata deste cliente
+			Client_info newClient;
+			newClient.socket = newClient_socket;
+			newClient.connected_group = newGroup;
 
-				// Finally start the client handler thread
-				for (int i = 0; i < MAX_CONNECTIONS; i++) {
-					if (client_thread_status[i] == 0) {
-						client_thread_status[i] = 1;
-						pthread_create(&client_threads[i], NULL, (void *)client_handler, (void *)&newClient);
-						break;
-					}
-				}
-				break;
-			} else {  // authentication was not ok
-				if (strcmp(pack.groupID, "accepted-group") == 0) {
-					if (strcmp(pack.secret, "declined-key") == 0) {	 // correct group but wrong key
-						strcpy(client_package.key, "accepted-group");
-						strcpy(client_package.value, "declined-key");
-					}
-				} else if (strcmp(pack.groupID, "declined-group") == 0) {
-					strcpy(client_package.key, "declined-group");
+			// Finally start the client handler thread
+			for (int i = 0; i < MAX_CONNECTIONS; i++) {
+				if (client_thread_status[i] == 0) {
+					client_thread_status[i] = 1;
+					pthread_create(&client_threads[i], NULL, (void *)client_handler, (void *)&newClient);
+					break;
 				}
 			}
-
+			// break;
+		} else {  // authentication was not ok
+			if (strcmp(pack.groupID, "accepted-group") == 0) {
+				if (strcmp(pack.secret, "declined-key") == 0) {	 // correct group but wrong key
+					strcpy(client_package.key, "accepted-group");
+					strcpy(client_package.value, "declined-key");
+				}
+			} else if (strcmp(pack.groupID, "declined-group") == 0) {
+				strcpy(client_package.key, "declined-group");
+			}
+			// comunicate to client
 			send(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
 		}
+		// }
 	}
 
 	close(clients.socket);

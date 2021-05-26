@@ -38,8 +38,24 @@ typedef struct _server_info_pack {
 	struct sockaddr_un adress;
 } Server_info_pack;
 
+// Structs que estao na lista de listas
+typedef struct _group {
+	LinkedList* keyValue_List;
+	// Talvez aqui por malloc
+	char groupID[1024];
+	int n_keyValues;
+} Grupo;
+
+//struct enviada ao client handler
 typedef struct _client_info {
 	int socket;
-	MainNode* connected_group;
+	Grupo* connected_group;
 } Client_info;
+
+//Struct que guarda o key|value
+typedef struct _keyValue
+{
+	char key[128];
+	char * value;
+} KeyValue;
 

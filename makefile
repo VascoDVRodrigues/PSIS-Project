@@ -22,4 +22,3 @@ teste: teste.c linkedList-lib.c
 
 clean:
 	rm KVS-localServer KVS-authServer app1 app2 teste -f
-
