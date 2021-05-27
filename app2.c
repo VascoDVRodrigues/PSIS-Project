@@ -15,6 +15,8 @@ int main() {
 		if (a == 0) {
 			printf("Established connection\n");
 			break;
+		} else if (a == -1) {
+			printf("Correct Group, wrong password... :(\n");
 		} else if (a == -2) {
 			printf("No Group with same GroupId! :(\n");
 		} else if (a == -3) {
@@ -36,10 +38,11 @@ int main() {
 			a = get_value(group_id, &result);
 			if (a == 0) {
 				printf("funca\n");
+				printf("Value: %s\n", result);
 			} else {
 				printf("nao funca\n");
 			}
-			printf("Value: %s\n", result);
+			
 		} else if (strcmp(option, "delete") == 0) {
 			a = delete_value(group_id);
 			if (a == 0) {

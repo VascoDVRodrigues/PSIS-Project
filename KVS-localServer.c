@@ -15,6 +15,15 @@ void freeKeyValue(Item item) {
 	return;
 }
 
+int compareGroups(Item g1, Item g2) {
+	Grupo data1 = *(Grupo *)g1;
+	Grupo data2 = *(Grupo *)g2;
+
+	if (strcmp(data1.groupID, data2.groupID) == 0) {
+		return 1;
+	}
+}
+
 int compareKeys(Item k1, Item k2) {
 	KeyValue data1 = *(KeyValue *)k1;
 	KeyValue data2 = *(KeyValue *)k2;
@@ -141,13 +150,13 @@ void *client_handler(void *arg) {
 		printf("Received %d bytes, mode: %d key: %s value: %s\n", n, client_package.mode, client_package.key, client_package.value);
 		if (client_package.mode == 1 && n > 0) {  // PUT VALUE
 			KeyValue *newData = calloc(1, sizeof(KeyValue));
-			strcpy(client_package.key, newData->key);
+			strcpy(newData->key, client_package.key);
 			newData->value = calloc(strlen(client_package.key), sizeof(char));
 			strcpy(newData->value, client_package.value);
 
 			if (searchNode(client.connected_group->keyValue_List, newData, compareKeys) == NULL) {
 				// a key ainda n existe, guardar na lista de key|value
-				client.connected_group->keyValue_List = insertNode(client.connected_group->keyValue_List, (Item)&newData);
+				client.connected_group->keyValue_List = insertNode(client.connected_group->keyValue_List, (Item)newData);
 			} else {
 				// Neste caso data to update e o proprio update sao iguais, pois a comparacão e feita tendo por base apenas a key
 				client.connected_group->keyValue_List =
@@ -160,7 +169,7 @@ void *client_handler(void *arg) {
 			KeyValue data_to_find;
 			strcpy(data_to_find.key, client_package.key);
 
-			KeyValue *data = (KeyValue*)searchNode(client.connected_group->keyValue_List, (Item)&data_to_find, compareKeys);
+			KeyValue *data = (KeyValue *)searchNode(client.connected_group->keyValue_List, (Item)&data_to_find, compareKeys);
 
 			// SubNode *aux = searchNode(client_package.key, client.connected_group->GroupHead);
 			if (data == NULL) {
@@ -242,7 +251,11 @@ int main() {
 			newGroup->keyValue_List = createList();	 // criar uma lista para guardar as key|value
 			newGroup->n_keyValues = 0;
 			strcpy(newGroup->groupID, client_package.value);
-			groupsList = insertNode(groupsList, (Item)newGroup);
+
+			// ver se o grupo ja foi adicionado por outra app
+			if (searchNode(groupsList, (Item)newGroup, compareGroups) == NULL) {  // aka ainda n existe
+				groupsList = insertNode(groupsList, (Item)newGroup);
+			}
 
 			// comunicate to client
 			strcpy(client_package.key, "accepted");
@@ -254,7 +267,7 @@ int main() {
 			// Contruir o package que vai ser enviado para a thread que trata deste cliente
 			Client_info newClient;
 			newClient.socket = newClient_socket;
-			newClient.connected_group = newGroup;
+			newClient.connected_group = (Grupo *)searchNode(groupsList, (Item)newGroup, compareGroups);
 
 			// Finally start the client handler thread
 			for (int i = 0; i < MAX_CONNECTIONS; i++) {
@@ -267,9 +280,9 @@ int main() {
 			// break;
 		} else {  // authentication was not ok
 			if (strcmp(pack.groupID, "accepted-group") == 0) {
-				if (strcmp(pack.secret, "declined-key") == 0) {	 // correct group but wrong key
+				if (strcmp(pack.secret, "declined-secret") == 0) {	// correct group but wrong key
 					strcpy(client_package.key, "accepted-group");
-					strcpy(client_package.value, "declined-key");
+					strcpy(client_package.value, "declined-secret");
 				}
 			} else if (strcmp(pack.groupID, "declined-group") == 0) {
 				strcpy(client_package.key, "declined-group");

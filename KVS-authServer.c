@@ -92,9 +92,6 @@ int main() {
 			// Send a response sayng that it went ok
 			strcpy(pack.groupID, "group-deleted");
 			strcpy(pack.secret, "group-deleted");
-			printf("----DENTRO DO IF---------------\n");
-			printList(groups_list, printGroups, 0);
-			printf("----DENTRO DO IF---------------\n");
 		} else if (pack.mode == 3) {  // show group info
 			Auth_grupo *aux = (Auth_grupo *)searchNode(groups_list, receivedData, compareGroups);
 			if (aux == NULL) {	// aka the group doesnt exist

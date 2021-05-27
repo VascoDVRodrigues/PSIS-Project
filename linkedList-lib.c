@@ -27,7 +27,6 @@ Item *searchNode(LinkedList *head, Item data_to_find, int compareItem(Item, Item
 
 	while (current != NULL) {
 		if (compareItem(data_to_find, current->item) == 1) {  // found
-			printf("found\n");
 			return current->item;
 		}
 		current = current->next;

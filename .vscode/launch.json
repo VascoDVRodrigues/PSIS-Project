@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "gcc-10 - Build and debug active file",
+            "name": "gcc-10 - Build and debug SERVERS",
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/${fileBasenameNoExtension}",
@@ -23,6 +23,27 @@
                 }
             ],
             "preLaunchTask": "KVS-Servers",
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "gcc-10 - Build and debug APPS",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${fileDirname}/${fileBasenameNoExtension}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "APPS",
             "miDebuggerPath": "/usr/bin/gdb"
         }
     ]

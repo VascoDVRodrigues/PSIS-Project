@@ -21,6 +21,27 @@
 			],
 			"group": "build",
 			"detail": "compiler: /usr/bin/gcc-10"
+		},
+		{
+			"type": "cppbuild",
+			"label": "APPS",
+			"command": "/usr/bin/gcc-10",
+			"args": [
+				"-g",
+				"${file}",
+				"KVS-lib.c",
+				"-o",
+				"${fileDirname}/${fileBasenameNoExtension}",
+				"-lpthread"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build",
+			"detail": "compiler: /usr/bin/gcc-10"
 		}
 	]
 }
