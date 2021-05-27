@@ -42,6 +42,26 @@
 			],
 			"group": "build",
 			"detail": "compiler: /usr/bin/gcc-10"
+		},
+		{
+			"type": "cppbuild",
+			"label": "TEST FILE",
+			"command": "/usr/bin/gcc-10",
+			"args": [
+				"-g",
+				"${file}",
+				"-o",
+				"${fileDirname}/${fileBasenameNoExtension}",
+				"-lpthread"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build",
+			"detail": "compiler: /usr/bin/gcc-10"
 		}
 	]
 }

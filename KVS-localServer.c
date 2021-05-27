@@ -5,6 +5,8 @@ LinkedList *groupsList;
 // List with all apps, previously connected and currently connected
 LinkedList *apps;
 
+int client_thread_status[MAX_CONNECTIONS];
+
 void printKV(Item item) {
 	KeyValue data = *(KeyValue *)item;
 	printf("%s|%s\n", data.key, data.value);
@@ -51,12 +53,19 @@ int compareApps(Item a1, Item a2) {
 void printApp(Item a) {
 	AppInfo A = *(AppInfo *)a;
 
-	//nao colocar a func ctime() dentro do printf, dá um output errado	
-	//nao alterar o tamanho das strings senao da core dumped
-	//as strings teem 26 pq segundo a documentacao é o tamanho da string retornada pelo ctime
+	// nao colocar a func ctime_r() dentro do printf, dá um output errado
+	// nao alterar o tamanho das strings senao da core dumped
+	// as strings teem 26 pq segundo a documentacao é o tamanho da string retornada pelo ctime_r
+	// NÃO MUDAR PARA A FUNC ctime() PORQUE NAO É THREAD SAFE
 	char start[26], end[26];
-	strcpy(start, ctime(&A.start));
-	strcpy(end, ctime(&A.end));
+
+	if (ctime_r(&A.start, start) == NULL) {
+		perror("ctime_r func");
+	}
+
+	if (ctime_r(&A.end, end) == NULL) {
+		perror("ctime_r func");
+	}
 
 	printf("App %d\n is ", A.PID);
 	if (A.connected) {
@@ -96,6 +105,10 @@ Returns:
 int setup_LocalServer(Server_info_pack *clients, Server_info_pack_INET *auth_server) {
 	groupsList = createList();
 	apps = createList();
+
+	for (int i = 0; i < MAX_CONNECTIONS; i++) {
+		client_thread_status[i] = 0;
+	}
 
 	/// client -- localserver socket///////////////////////
 	clients->adress.sun_family = AF_UNIX;
@@ -201,7 +214,7 @@ void *client_handler(void *arg) {
 		if (client_package.mode == 1 && n > 0) {  // PUT VALUE
 			KeyValue *newData = calloc(1, sizeof(KeyValue));
 			strcpy(newData->key, client_package.key);
-			newData->value = calloc(strlen(client_package.key), sizeof(char));
+			newData->value = calloc(strlen(client_package.value), sizeof(char));
 			strcpy(newData->value, client_package.value);
 
 			if (searchNode(client.connected_group->keyValue_List, newData, compareKeys) == NULL) {
@@ -247,12 +260,11 @@ void *client_handler(void *arg) {
 			// kvslib will send the app's PID, inside variable mode
 			recv(client.socket, (void *)&client_package, sizeof(client_package), 0);
 			// this app is closing so find the app in the apps list and set that to disconnected
-			AppInfo *app_closing;  //= (AppInfo *)calloc(1, sizeof(AppInfo));
-			AppInfo app_closing_info;
+			AppInfo *app_closing = (AppInfo *)calloc(1, sizeof(AppInfo));
 
-			app_closing_info.PID = client_package.mode;
+			app_closing->PID = client_package.mode;
 			// basta enviar a struct com o PID preenchido pois a comparacao e feita tendo por base o PID apenas
-			app_closing = (AppInfo *)searchNode(apps, (Item)&app_closing_info, compareApps);
+			app_closing = (AppInfo *)searchNode(apps, (Item)app_closing, compareApps);
 
 			if (app_closing == NULL) {
 				printf("Algo de muito errado nao esta certo...\n");
@@ -263,9 +275,13 @@ void *client_handler(void *arg) {
 			app_closing->connected = 0;
 
 			// atualizar na lista
-			//// envia-se no data to update e no proprio update a mm struct pois a comparacao e feita so com o PID
-			apps = updateNode(apps, (Item)&app_closing_info, (Item)app_closing, compareApps, freeApps);
+			// envia-se no data to update e no proprio update a mm struct pois a comparacao e feita so com o PID
+			apps = updateNode(apps, (Item)app_closing, (Item)app_closing, compareApps, freeApps);
+
+			// finally set this tread as free
+			client_thread_status[client.index_client_thread_status] = 0;  // POSSIVEL MUTEX???
 		} else if (n == 0) {
+			// SIGNIFICA QUE A CONEXAO FOI FECHADA E POR ISSO PODE-SE METER-SE A APP COMO DESCONECTADA?
 			break;
 		} else {
 			printf("else\n");
@@ -281,10 +297,6 @@ void *client_handler(void *arg) {
 int main() {
 	srand(time(NULL));
 	pthread_t client_threads[MAX_CONNECTIONS];
-	int client_thread_status[MAX_CONNECTIONS];
-	for (int i = 0; i < MAX_CONNECTIONS; i++) {
-		client_thread_status[i] = 0;
-	}
 
 	Server_info_pack clients;
 	Server_info_pack_INET auth_server;
@@ -352,6 +364,7 @@ int main() {
 			for (int i = 0; i < MAX_CONNECTIONS; i++) {
 				if (client_thread_status[i] == 0) {
 					client_thread_status[i] = 1;
+					newClient.index_client_thread_status = i;
 					pthread_create(&client_threads[i], NULL, (void *)client_handler, (void *)&newClient);
 					break;
 				}

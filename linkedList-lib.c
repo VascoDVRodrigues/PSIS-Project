@@ -92,7 +92,7 @@ int numItens(LinkedList *head) {
 
 void printList(LinkedList *head, void printItem(Item), int tabs) {
 	if (head == NULL) {
-		printf("Empty List\n");
+		printf("Nothing to see here, this list is empty... :P\n");
 		return;
 	}
 

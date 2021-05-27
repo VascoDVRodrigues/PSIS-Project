@@ -50,6 +50,8 @@ typedef struct _group {
 // struct enviada ao client handler
 typedef struct _client_info {
 	int socket;
+	//guarda o indice correspondente a thread no vetor dos status das threads
+	int index_client_thread_status;
 	Grupo* connected_group;
 } Client_info;
 
@@ -62,7 +64,8 @@ typedef struct _keyValue {
 typedef struct _appsInfo {
 	int PID, connected;
 	// para guadar o tempo fazer time(&start),
-	// para dar print fazer ctime(&start);
+	// para dar print fazer ctime_r(&start);
+	//NÃO USAR A FUNC ctime_r pq nao é thread safe
 	// ou então usar a funcao strftime(...) para formatar o output
 	time_t start, end;
 } AppInfo;
