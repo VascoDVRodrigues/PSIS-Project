@@ -57,9 +57,9 @@ int put_value(char *key, char *value) {
 		return -3;
 	}
 	if (strcmp(a.key, "accepted") == 0) {
-		return 0; 
+		return 0;
 	} else {
-		return -1; //error saving value
+		return -1;	// error saving value
 	}
 }
 int get_value(char *key, char **value) {
@@ -111,16 +111,23 @@ int delete_value(char *key) {
 	return -1;
 }
 int register_callback(char *key, void (*callback_function)(char *)) {}
-int close_connection() {
-	/*Package a;
-	a.mode = 3;
 
-	strcpy(a.key, "empty");
-	strcpy(a.value, "empty");
+int close_connection() {
+	App_Package a;
+	a.mode = 3;
 
 	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		perror("writing on stream socket");
-	}*/
+	}
+
+	// send this app's PID to local server inside variable "mode"
+
+	a.mode = getpid();
+
+	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
+		perror("writing on stream socket");
+	}
+
 	close(local_server_sock);
 	return 0;
 }

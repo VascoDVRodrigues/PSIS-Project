@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "linkedList-lib.h"
@@ -46,16 +47,22 @@ typedef struct _group {
 	int n_keyValues;
 } Grupo;
 
-//struct enviada ao client handler
+// struct enviada ao client handler
 typedef struct _client_info {
 	int socket;
 	Grupo* connected_group;
 } Client_info;
 
-//Struct que guarda o key|value
-typedef struct _keyValue
-{
+// Struct que guarda o key|value
+typedef struct _keyValue {
 	char key[128];
-	char * value;
+	char* value;
 } KeyValue;
 
+typedef struct _appsInfo {
+	int PID, connected;
+	// para guadar o tempo fazer time(&start),
+	// para dar print fazer ctime(&start);
+	// ou então usar a funcao strftime(...) para formatar o output
+	time_t start, end;
+} AppInfo;

@@ -2,6 +2,9 @@
 
 LinkedList *groupsList;
 
+// List with all apps, previously connected and currently connected
+LinkedList *apps;
+
 void printKV(Item item) {
 	KeyValue data = *(KeyValue *)item;
 	printf("%s|%s\n", data.key, data.value);
@@ -35,6 +38,40 @@ int compareKeys(Item k1, Item k2) {
 	return 0;
 }
 
+int compareApps(Item a1, Item a2) {
+	AppInfo A1 = *(AppInfo *)a1;
+	AppInfo A2 = *(AppInfo *)a2;
+
+	if (A1.PID == A2.PID) {
+		return 1;
+	}
+	return 0;
+}
+
+void printApp(Item a) {
+	AppInfo A = *(AppInfo *)a;
+
+	//nao colocar a func ctime() dentro do printf, dá um output errado	
+	//nao alterar o tamanho das strings senao da core dumped
+	//as strings teem 26 pq segundo a documentacao é o tamanho da string retornada pelo ctime
+	char start[26], end[26];
+	strcpy(start, ctime(&A.start));
+	strcpy(end, ctime(&A.end));
+
+	printf("App %d\n is ", A.PID);
+	if (A.connected) {
+		printf("currently connected\n Started connection at %s\n", start);
+	} else {
+		printf("disconnected.\n Started connection at %s\nEnded connection at %s\n", start, end);
+	}
+	return;
+}
+
+void freeApps(Item a1) {
+	// free(a1);
+	return;
+}
+
 // Cria e retorna uma random string com tamanho size
 char *randomString(int size) {
 	char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890\0";
@@ -58,6 +95,7 @@ Returns:
 */
 int setup_LocalServer(Server_info_pack *clients, Server_info_pack_INET *auth_server) {
 	groupsList = createList();
+	apps = createList();
 
 	/// client -- localserver socket///////////////////////
 	clients->adress.sun_family = AF_UNIX;
@@ -132,9 +170,21 @@ void *server_UI(void *arg) {
 			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 
 			recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
-			printf("Received: \nGroupID: %s\nSecret: %s\n", pack.groupID, pack.secret);
+			printf("Received: \n\tGroupID: %s\n\tSecret: %s\n", pack.groupID, pack.secret);
+
+			// search this group in the groups list to display #keys|values
+			Grupo grupo_to_find;
+			strcpy(grupo_to_find.groupID, pack.groupID);
+
+			Grupo *grupo_found = (Grupo *)searchNode(groupsList, (Item)&grupo_to_find, compareGroups);
+
+			if (grupo_found == NULL) {	// se o grupo ainda n esta na lista de grupos neste server é pq ainda n esta a guardar nada
+				printf("\tGroup doesn't have any keys|values :(\n");
+			} else {
+				printf("\tHas %d keys|values\n", grupo_found->n_keyValues);
+			}
 		} else if (option == 4) {  // Show app status
-								   /* code */
+			printList(apps, printApp, 0);
 		} else if (option == 5) {
 			break;
 		}
@@ -157,6 +207,8 @@ void *client_handler(void *arg) {
 			if (searchNode(client.connected_group->keyValue_List, newData, compareKeys) == NULL) {
 				// a key ainda n existe, guardar na lista de key|value
 				client.connected_group->keyValue_List = insertNode(client.connected_group->keyValue_List, (Item)newData);
+				// incrementar o numero de keys|values que o grupo já tem
+				client.connected_group->n_keyValues += 1;
 			} else {
 				// Neste caso data to update e o proprio update sao iguais, pois a comparacão e feita tendo por base apenas a key
 				client.connected_group->keyValue_List =
@@ -191,6 +243,28 @@ void *client_handler(void *arg) {
 				strcpy(client_package.key, "accepted");
 			}
 			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
+		} else if (client_package.mode == 3 && n > 0) {	 // close connection
+			// kvslib will send the app's PID, inside variable mode
+			recv(client.socket, (void *)&client_package, sizeof(client_package), 0);
+			// this app is closing so find the app in the apps list and set that to disconnected
+			AppInfo *app_closing;  //= (AppInfo *)calloc(1, sizeof(AppInfo));
+			AppInfo app_closing_info;
+
+			app_closing_info.PID = client_package.mode;
+			// basta enviar a struct com o PID preenchido pois a comparacao e feita tendo por base o PID apenas
+			app_closing = (AppInfo *)searchNode(apps, (Item)&app_closing_info, compareApps);
+
+			if (app_closing == NULL) {
+				printf("Algo de muito errado nao esta certo...\n");
+			}
+
+			// dar update da flag e colocar data em q desligou
+			app_closing->end = time(NULL);
+			app_closing->connected = 0;
+
+			// atualizar na lista
+			//// envia-se no data to update e no proprio update a mm struct pois a comparacao e feita so com o PID
+			apps = updateNode(apps, (Item)&app_closing_info, (Item)app_closing, compareApps, freeApps);
 		} else if (n == 0) {
 			break;
 		} else {
@@ -263,6 +337,11 @@ int main() {
 
 			// the kvslib will send the client PID, in client_package.mode
 			recv(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
+			AppInfo *new_app = (AppInfo *)calloc(1, sizeof(AppInfo));
+			new_app->connected = 1;
+			new_app->PID = client_package.mode;
+			new_app->start = time(NULL);
+			apps = insertNode(apps, (Item)new_app);
 
 			// Contruir o package que vai ser enviado para a thread que trata deste cliente
 			Client_info newClient;
