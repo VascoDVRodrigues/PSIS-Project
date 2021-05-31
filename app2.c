@@ -1,8 +1,12 @@
 #include "KVS-lib.h"
 
 int main() {
-	char group_id[100];
-	char secret[100];
+	char group_id[1024];
+	char secret[1024];
+
+	char key[128];
+	char value[5000];  // infinito
+
 	char option[20];
 	char *result;
 	int a;
@@ -12,6 +16,7 @@ int main() {
 		printf("Enter Secret: ");
 		scanf("%s", secret);
 		a = establish_connection(group_id, secret);
+		printf("ret do establish: %d\n", a);
 		if (a == 0) {
 			printf("Established connection\n");
 			break;
@@ -26,9 +31,9 @@ int main() {
 
 	while (1) {
 		printf("Enter option: ");
-		scanf("%s %s %s", option, group_id, secret);
+		scanf("%s %s %s", option, group_id, value);
 		if (strcmp(option, "put") == 0) {
-			a = put_value(group_id, secret);
+			a = put_value(group_id, value);
 			if (a == 0) {
 				printf("funca\n");
 			} else {

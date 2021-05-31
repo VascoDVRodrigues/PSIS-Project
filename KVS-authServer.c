@@ -33,7 +33,7 @@ int main() {
 	struct sockaddr_in server, client;
 	int fd, client_address_size;
 	char buf[32];
-	Auth_Package pack;
+	Package pack;
 
 	groups_list = createList();
 

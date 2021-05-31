@@ -4,6 +4,9 @@
         "socket.h": "c",
         "unistd.h": "c",
         "stdio.h": "c",
-        "linkedlist-lib.h": "c"
+        "linkedlist-lib.h": "c",
+        "pthread.h": "c",
+        "in.h": "c",
+        "type_traits": "c"
     }
 }

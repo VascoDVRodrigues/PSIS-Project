@@ -20,78 +20,103 @@ int establish_connection(char *group_id, char *secret) {
 		return -4;
 	}
 	// printf("Connected to local server\n");
-	App_Package pack;
-	strcpy(pack.value, group_id);
-	strcpy(pack.key, secret);
+	Package pack;
+	strcpy(pack.groupID, group_id);
+	strcpy(pack.secret, secret);
+
 	send(local_server_sock, (void *)&pack, sizeof(pack), 0);
 
 	recv(local_server_sock, (void *)&pack, sizeof(pack), 0);
-	if (strcmp(pack.key, "accepted") == 0) {
+	if (strcmp(pack.secret, "accepted") == 0) {
 		// must save the client PID and send it to server
 		printf("pid: %d\n", getpid());
 		pack.mode = getpid();
 		send(local_server_sock, (void *)&pack, sizeof(pack), 0);
 		return 0;
-	} else if (strcmp(pack.key, "accepted-group") == 0) {
+	} else if (strcmp(pack.groupID, "accepted-group") == 0) {
 		return -1;	// grupo certo, chave errada
-	} else if (strcmp(pack.key, "declined-group") == 0) {
+	} else if (strcmp(pack.secret, "declined-group") == 0) {
 		// close(local_server_sock);
 		return -2;	// grupo errado
 	}
 }
 
 int put_value(char *key, char *value) {
-	App_Package a;
+	// VALUE TEM UMA DIMENSAO "INFINITA"
+	Package a;
 	a.mode = 1;
-	strcpy(a.key, key);
-	strcpy(a.value, value);
 
-	// printf("%s %s %d\n", a.key, a.value, a.mode);
+	char key_to_send[128];
+	strncpy(key_to_send, key, 127);	 // Guardar 1 byte para o \0
+	key_to_send[127] = '\0';		 // para o caso de a key ser maior que 128, temos que por o \0
+	// para ver porque ler a man page da funcao strncpy
 
+	// enviar o modo
 	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		perror("writing on stream socket");
 		return -2;
 	}
+
+	// Depois de o server ter identificado o modo ja podemos enviar a key e o value
+	send(local_server_sock, (void *)key_to_send, 128, 0);  // mandar 128 só, e o max permitido
+
+	// Enviar o tamanho do value e depois o value
+	size_t size = strlen(value) + 1;
+	send(local_server_sock, (void *)&size, sizeof(size_t), 0);
+
+	send(local_server_sock, (void *)value, size, 0);
+
+	// Response from server
 	if (recv(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		perror("recieving response");
 		return -3;
 	}
-	if (strcmp(a.key, "accepted") == 0) {
+	if (strcmp(a.secret, "accepted") == 0) {
 		return 0;
 	} else {
 		return -1;	// error saving value
 	}
 }
 int get_value(char *key, char **value) {
-	App_Package a;
+	Package a;
 	a.mode = 0;
-	strcpy(a.key, key);
+	strcpy(a.groupID, key);
 
-	// printf("%s %d\n", a.key, a.mode);
+	// Fazer como no put_value
 
+	char key_to_send[128];
+	strncpy(key_to_send, key, 127);
+	key_to_send[127] = '\0';  // ver os comentarios do put_value
+
+	// enviar o modo
 	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		perror("writing on stream socket");
 		return -2;
 	}
+	// enviar a key
+	send(local_server_sock, (void *)key_to_send, 128, 0);
 
+	// ver a resposta do server a esta key
 	if (recv(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		perror("Receiving message from server!!\n");
 		return -3;
 	}
-
-	if (strcmp(a.key, "accepted") == 0) {
-		*value = (char *)malloc(strlen(a.value) + 1);
-		strcpy(*value, a.value);
+	size_t size = 0;
+	if (strcmp(a.groupID, "accepted") == 0) {
+		// O server vai enviar o tamanho do value e depois o value
+		recv(local_server_sock, (void *)&size, sizeof(size), 0);
+		*value = (char *)malloc(sizeof(char) * size);
+		recv(local_server_sock, (void *)*value, size, 0);
 		return 0;
 	}
 	return -1;
 	// printf("Value: %s\tKey: %s\n", a.value, a.key);
 }
 int delete_value(char *key) {
-	App_Package a;
+	Package a;
 	a.mode = 2;
-	strcpy(a.key, key);
-	strcpy(a.value, "empty");
+	strcpy(a.groupID, key);
+	strcpy(a.groupID, "empty");
 
 	// printf("%s %d\n", a.key, a.mode);
 
@@ -105,7 +130,7 @@ int delete_value(char *key) {
 		perror("Receiving message from server!!\n");
 		return -3;
 	}
-	if (strcmp(a.key, "accepted") == 0) {
+	if (strcmp(a.groupID, "accepted") == 0) {
 		return 0;
 	}
 	return -1;
@@ -113,7 +138,7 @@ int delete_value(char *key) {
 int register_callback(char *key, void (*callback_function)(char *)) {}
 
 int close_connection() {
-	App_Package a;
+	Package a;
 	a.mode = 3;
 
 	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {

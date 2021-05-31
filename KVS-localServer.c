@@ -138,7 +138,7 @@ int setup_LocalServer(Server_info_pack *clients, Server_info_pack_INET *auth_ser
 
 	auth_server->adress.sin_family = AF_INET;
 	auth_server->adress.sin_port = htons(8080);
-	inet_aton("127.0.0.1", &auth_server->adress.sin_addr);
+	inet_aton("192.168.1.144", &auth_server->adress.sin_addr);
 	printf("Auth server socket created!! :)");
 	//////////localserver -- authserver socket///////////////////////
 	return 0;
@@ -148,7 +148,7 @@ void *server_UI(void *arg) {
 	Server_info_pack auth_server = *(Server_info_pack *)arg;
 
 	int option = 0;
-	Auth_Package pack;
+	Package pack;
 	while (1) {
 		printf("\n\tKVS Local Server\n");
 		printf("1. Create Group\n2. Delete Group\n3. Show group info\n");
@@ -207,15 +207,22 @@ void *server_UI(void *arg) {
 void *client_handler(void *arg) {
 	Client_info client = *(Client_info *)arg;
 
-	App_Package client_package;
+	Package pack;
 	while (1) {
-		int n = recv(client.socket, (void *)&client_package, sizeof(client_package), 0);
-		printf("Received %d bytes, mode: %d key: %s value: %s\n", n, client_package.mode, client_package.key, client_package.value);
-		if (client_package.mode == 1 && n > 0) {  // PUT VALUE
+		int n = recv(client.socket, (void *)&pack, sizeof(pack), 0);
+		printf("Received %d bytes, mode: %d groupID: %s secret: %s\n", n, pack.mode, pack.groupID, pack.secret);
+		if (pack.mode == 1 && n > 0) {	// PUT VALUE
 			KeyValue *newData = calloc(1, sizeof(KeyValue));
-			strcpy(newData->key, client_package.key);
-			newData->value = calloc(strlen(client_package.value), sizeof(char));
-			strcpy(newData->value, client_package.value);
+
+			// Cliente vai mandar a key (array c 128)
+			recv(client.socket, (void *)newData->key, 128, 0);	// Ler 128 bytes
+			// Cliente vai mandar o tamanho do value e depois o value
+			size_t size = 0;
+			recv(client.socket, (void *)&size, sizeof(size_t), 0);
+
+			newData->value = (char *)malloc(sizeof(char) * size);
+
+			recv(client.socket, (void *)newData->value, size, 0);
 
 			if (searchNode(client.connected_group->keyValue_List, newData, compareKeys) == NULL) {
 				// a key ainda n existe, guardar na lista de key|value
@@ -228,41 +235,51 @@ void *client_handler(void *arg) {
 					updateNode(client.connected_group->keyValue_List, (Item)newData, (Item)newData, compareKeys, freeKeyValue);
 			}
 
-			strcpy(client_package.key, "accepted");
-			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
-		} else if (client_package.mode == 0 && n > 0) {	 // GET VALUE
+			strcpy(pack.secret, "accepted");
+			send(client.socket, (void *)&pack, sizeof(pack), 0);
+		} else if (pack.mode == 0 && n > 0) {  // GET VALUE
 			KeyValue data_to_find;
-			strcpy(data_to_find.key, client_package.key);
+
+			// Cliente vai mandar a key (array c 128)
+			recv(client.socket, (void *)data_to_find.key, 128, 0);	// Ler 128 bytes
 
 			KeyValue *data = (KeyValue *)searchNode(client.connected_group->keyValue_List, (Item)&data_to_find, compareKeys);
 
-			// SubNode *aux = searchNode(client_package.key, client.connected_group->GroupHead);
+			// SubNode *aux = searchNode(pack.key, client.connected_group->GroupHead);
 			if (data == NULL) {
-				strcpy(client_package.key, "declined");
+				strcpy(pack.groupID, "declined");
+				send(client.socket, (void *)&pack, sizeof(pack), 0);
 			} else {
-				strcpy(client_package.value, data->value);
-				strcpy(client_package.key, "accepted");
+				// Como encontramos vamos enviar esta informacao
+				strcpy(pack.groupID, "accepted");
+				send(client.socket, (void *)&pack, sizeof(pack), 0);
+
+				// agora vamos enviar o tamanho do value e depois o value
+				size_t size = strlen(data->value) + 1;
+				send(client.socket, (void *)&size, sizeof(size), 0);
+
+				send(client.socket, (void *)data->value, size, 0);
 			}
-			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
-		} else if (client_package.mode == 2 && n > 0) {	 // DELETE VALUE
+
+		} else if (pack.mode == 2 && n > 0) {  // DELETE VALUE
 			KeyValue data_to_delete;
-			strcpy(data_to_delete.key, client_package.key);
+			strcpy(data_to_delete.key, pack.groupID);
 
 			if (searchNode(client.connected_group->keyValue_List, (Item)&data_to_delete, compareKeys) == NULL) {
-				strcpy(client_package.key, "declined");
+				strcpy(pack.secret, "declined");
 			} else {
 				client.connected_group->keyValue_List =
 					deleteNode(client.connected_group->keyValue_List, (Item)&data_to_delete, compareKeys, freeKeyValue);
-				strcpy(client_package.key, "accepted");
+				strcpy(pack.secret, "accepted");
 			}
-			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
-		} else if (client_package.mode == 3 && n > 0) {	 // close connection
+			send(client.socket, (void *)&pack, sizeof(pack), 0);
+		} else if (pack.mode == 3 && n > 0) {  // close connection
 			// kvslib will send the app's PID, inside variable mode
-			recv(client.socket, (void *)&client_package, sizeof(client_package), 0);
+			recv(client.socket, (void *)&pack, sizeof(pack), 0);
 			// this app is closing so find the app in the apps list and set that to disconnected
 			AppInfo *app_closing = (AppInfo *)calloc(1, sizeof(AppInfo));
 
-			app_closing->PID = client_package.mode;
+			app_closing->PID = pack.mode;
 			// basta enviar a struct com o PID preenchido pois a comparacao e feita tendo por base o PID apenas
 			app_closing = (AppInfo *)searchNode(apps, (Item)app_closing, compareApps);
 
@@ -285,8 +302,8 @@ void *client_handler(void *arg) {
 			break;
 		} else {
 			printf("else\n");
-			strcpy(client_package.key, "declined");
-			send(client.socket, (void *)&client_package, sizeof(client_package), 0);
+			strcpy(pack.secret, "declined");
+			send(client.socket, (void *)&pack, sizeof(pack), 0);
 		}
 		printList(client.connected_group->keyValue_List, printKV, 0);
 	}
@@ -309,8 +326,8 @@ int main() {
 	printf("Waiting for connections!!\n");
 
 	int newClient_socket = 0, n = 0;
-	Auth_Package pack;
-	App_Package client_package;
+	Package pack;
+	size_t size = 0;
 	while (1) {
 		// while (1) {
 		newClient_socket = accept(clients.socket, NULL, NULL);
@@ -318,12 +335,10 @@ int main() {
 			printf("Connected to %d\n", newClient_socket);
 		}
 
-		n = recv(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
-		printf("Client %d wants to connect to group %s, with secret %s\n", newClient_socket, client_package.value, client_package.key);
+		n = recv(newClient_socket, (void *)&pack, sizeof(pack), 0);
+		printf("Client %d wants to connect to group %s, with secret %s\n", newClient_socket, pack.groupID, pack.secret);
 
-		// authenticate with auth server
-		strcpy(pack.groupID, client_package.value);
-		strcpy(pack.secret, client_package.key);
+		// como o package e o mesmo e so mudar o modo
 		pack.mode = 10;
 		sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 
@@ -336,22 +351,22 @@ int main() {
 			Grupo *newGroup = calloc(1, sizeof(Grupo));
 			newGroup->keyValue_List = createList();	 // criar uma lista para guardar as key|value
 			newGroup->n_keyValues = 0;
-			strcpy(newGroup->groupID, client_package.value);
+			strcpy(newGroup->groupID, pack.groupID);
 
 			// ver se o grupo ja foi adicionado por outra app
 			if (searchNode(groupsList, (Item)newGroup, compareGroups) == NULL) {  // aka ainda n existe
 				groupsList = insertNode(groupsList, (Item)newGroup);
 			}
 
-			// comunicate to client
-			strcpy(client_package.key, "accepted");
-			send(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
+			// comunicate to client, inside secret
+			strcpy(pack.secret, "accepted");
+			send(newClient_socket, (void *)&pack, sizeof(pack), 0);
 
-			// the kvslib will send the client PID, in client_package.mode
-			recv(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
+			// the kvslib will send the client PID, in pack.mode
+			recv(newClient_socket, (void *)&pack, sizeof(pack), 0);
 			AppInfo *new_app = (AppInfo *)calloc(1, sizeof(AppInfo));
 			new_app->connected = 1;
-			new_app->PID = client_package.mode;
+			new_app->PID = pack.mode;
 			new_app->start = time(NULL);
 			apps = insertNode(apps, (Item)new_app);
 
@@ -371,16 +386,17 @@ int main() {
 			}
 			// break;
 		} else {  // authentication was not ok
+			printf("gid: %s, secret: %s\n", pack.groupID, pack.secret);
 			if (strcmp(pack.groupID, "accepted-group") == 0) {
 				if (strcmp(pack.secret, "declined-secret") == 0) {	// correct group but wrong key
-					strcpy(client_package.key, "accepted-group");
-					strcpy(client_package.value, "declined-secret");
+					strcpy(pack.groupID, "accepted-group");
+					strcpy(pack.secret, "declined-secret");
 				}
 			} else if (strcmp(pack.groupID, "declined-group") == 0) {
-				strcpy(client_package.key, "declined-group");
+				strcpy(pack.secret, "declined-group");
 			}
 			// comunicate to client
-			send(newClient_socket, (void *)&client_package, sizeof(client_package), 0);
+			send(newClient_socket, (void *)&pack, sizeof(pack), 0);
 		}
 		// }
 	}
