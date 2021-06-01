@@ -26,7 +26,8 @@ int establish_connection(char *group_id, char *secret) {
 
 	send(local_server_sock, (void *)&pack, sizeof(pack), 0);
 
-	recv(local_server_sock, (void *)&pack, sizeof(pack), 0);
+	int a = recv(local_server_sock, (void *)&pack, sizeof(pack), 0);
+
 	if (strcmp(pack.secret, "accepted") == 0) {
 		// must save the client PID and send it to server
 		pack.mode = getpid();
@@ -37,6 +38,8 @@ int establish_connection(char *group_id, char *secret) {
 	} else if (strcmp(pack.secret, "declined-group") == 0) {
 		// close(local_server_sock);
 		return -2;	// grupo errado
+	} else if (a <= 0) {
+		return -5;
 	}
 }
 
@@ -110,7 +113,7 @@ int get_value(char *key, char **value) {
 		*value = (char *)malloc(sizeof(char) * size);
 		recv(local_server_sock, (void *)*value, size, 0);
 		return 0;
-	} else if (strcmp(a.secret, "group-deleted")) {
+	} else if (strcmp(a.secret, "group-deleted") == 0) {
 		close_connection();
 		return -4;
 	}
@@ -140,9 +143,13 @@ int delete_value(char *key) {
 	}
 	if (strcmp(a.secret, "accepted") == 0) {
 		return 0;
+	} else if (strcmp(a.secret, "group-deleted") == 0) {
+		close_connection();
+		return -4;
 	}
 	return -1;
 }
+
 int register_callback(char *key, void (*callback_function)(char *)) {
 	Package a;
 	a.mode = 4;
@@ -180,11 +187,11 @@ int close_connection() {
 
 	// send this app's PID to local server inside variable "mode"
 
-	a.mode = getpid();
+	/*a.mode = getpid();
 
 	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		perror("writing on stream socket");
-	}
+	}*/
 
 	close(local_server_sock);
 	return 0;

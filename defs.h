@@ -20,7 +20,7 @@
 #define AUTHSERVER_IP "127.0.0.1"
 
 #define MESSAGE_SIZE 100
-#define MAX_CONNECTIONS 10
+#define MAX_CONNECTIONS 2
 
 typedef struct auth_package {
 	char groupID[1024];

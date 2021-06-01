@@ -27,6 +27,8 @@ int main() {
 				printf("No Group with same GroupId! :(\n");
 			} else if (a == -3) {
 				printf("Wrong Key! :(\n");
+			} else if (a == -5) {
+				printf("Full server, try again later!\n");
 			}
 		}
 		char *line;
@@ -52,6 +54,9 @@ int main() {
 				if (a == 0) {
 					printf("funca\n");
 					printf("Value: %s\n", result);
+				} else if (a == -4) {
+					printf("Grupo foi apagado\n");
+					break;
 				} else {
 					printf("nao funca\n");
 				}
@@ -66,6 +71,9 @@ int main() {
 				a = close_connection();
 				if (a == 0) {
 					printf("funca\n");
+				} else if (a == -4) {
+					printf("Grupo foi apagado\n");
+					break;
 				} else {
 					printf("nao funca\n");
 				}

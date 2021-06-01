@@ -233,6 +233,7 @@ void *client_handler(void *arg) {
 	Client_info client = *(Client_info *)arg;
 	int n = 0;
 	Package pack;
+	AppInfo *new_app;
 
 	n = recv(client.socket, (void *)&pack, sizeof(pack), 0);
 	printf("Client %d wants to connect to group %s, with secret %s\n", client.socket, pack.groupID, pack.secret);
@@ -265,7 +266,7 @@ void *client_handler(void *arg) {
 
 		// the kvslib will send the client PID, in pack.mode
 		recv(client.socket, (void *)&pack, sizeof(pack), 0);
-		AppInfo *new_app = (AppInfo *)calloc(1, sizeof(AppInfo));
+		new_app = (AppInfo *)calloc(1, sizeof(AppInfo));
 		new_app->connected = 1;
 		new_app->PID = pack.mode;
 		new_app->start = time(NULL);
@@ -360,23 +361,26 @@ void *client_handler(void *arg) {
 		} else if (pack.mode == 2 && n > 0) {  // DELETE VALUE
 			KeyValue data_to_delete;
 			strcpy(data_to_delete.key, pack.secret);
-
-			if (searchNode(client.connected_group->keyValue_List, (Item)&data_to_delete, compareKeys) == NULL) {
-				strcpy(pack.secret, "declined");
-			} else {
-				client.connected_group->keyValue_List =
-					deleteNode(client.connected_group->keyValue_List, (Item)&data_to_delete, compareKeys, freeKeyValue);
-				strcpy(pack.secret, "accepted");
-			}
-			send(client.socket, (void *)&pack, sizeof(pack), 0);
-		} else if (pack.mode == 3 && n > 0) {  // close connection
+			if (!((client.connected_group->deleted == 1) && (client.connected_group->connected != 0))) {
+				if (searchNode(client.connected_group->keyValue_List, (Item)&data_to_delete, compareKeys) == NULL) {
+					strcpy(pack.secret, "declined");
+				} else {
+					client.connected_group->keyValue_List =
+						deleteNode(client.connected_group->keyValue_List, (Item)&data_to_delete, compareKeys, freeKeyValue);
+					strcpy(pack.secret, "accepted");
+				}
+				send(client.socket, (void *)&pack, sizeof(pack), 0);
+			}									// else do nothing
+		} else if (pack.mode == 3 || n >= 0) {	// close connection
 			client.connected_group->connected = 0;
+			/*
 			// kvslib will send the app's PID, inside variable mode
-			recv(client.socket, (void *)&pack, sizeof(pack), 0);
+			recv(client.socket, (void *)&pack, sizeof(pack), 0);*/
 			// this app is closing so find the app in the apps list and set that to disconnected
 			AppInfo *app_closing = (AppInfo *)calloc(1, sizeof(AppInfo));
 
-			app_closing->PID = pack.mode;
+			// app_closing->PID = pack.mode;
+			app_closing->PID = new_app->PID;
 			// basta enviar a struct com o PID preenchido pois a comparacao e feita tendo por base o PID apenas
 			app_closing = (AppInfo *)searchNode(apps, (Item)app_closing, compareApps);
 
@@ -413,21 +417,46 @@ void *client_handler(void *arg) {
 			}
 
 		} else if (n == 0) {
-			printf("elsif n==0\n");
-			// SIGNIFICA QUE A CONEXAO FOI FECHADA E POR ISSO PODE-SE METER-SE A APP COMO DESCONECTADA
-			break;
+			printf("Nada\n");
+			/*client.connected_group->connected = 0;
+
+			// kvslib will send the app's PID, inside variable mode
+			recv(client.socket, (void *)&pack, sizeof(pack), 0);*/
+			// this app is closing so find the app in the apps list and set that to disconnected
+			/*AppInfo *app_closing = (AppInfo *)calloc(1, sizeof(AppInfo));
+
+			// app_closing->PID = pack.mode;
+			app_closing->PID = new_app->PID;
+			// basta enviar a struct com o PID preenchido pois a comparacao e feita tendo por base o PID apenas
+			app_closing = (AppInfo *)searchNode(apps, (Item)app_closing, compareApps);
+
+			if (app_closing == NULL) {
+				printf("Algo de muito errado nao esta certo...\n");
+			}
+
+			// dar update da flag e colocar data em q desligou
+			app_closing->end = time(NULL);
+			app_closing->connected = 0;
+
+			// atualizar na lista
+			// envia-se no data to update e no proprio update a mm struct pois a comparacao e feita so com o PID
+			apps = updateNode(apps, (Item)app_closing, (Item)app_closing, compareApps, freeApps);
+
+			// finally set this tread as free
+			client_thread_status[client.index_client_thread_status] = 0;  // POSSIVEL MUTEX???
+			break;*/
 		} else {
 			printf("else\n");
 			strcpy(pack.secret, "declined");
 			send(client.socket, (void *)&pack, sizeof(pack), 0);
 		}
 
-		printList(client.connected_group->keyValue_List, printKV, 0);
-
 		if ((client.connected_group->deleted == 1) && (client.connected_group->connected != 0)) {
 			client.connected_group->connected = 0;
 			strcpy(pack.secret, "group-deleted");
 			send(client.socket, (void *)&pack, sizeof(pack), 0);
+		} else {
+			printList(client.connected_group->keyValue_List, printKV, 0);
 		}
 	}
 	if ((client.connected_group->deleted == 1) && (client.connected_group->connected == 0)) {
@@ -451,7 +480,7 @@ int main() {
 	listen(clients.socket, 10);
 	printf("Waiting for connections!!\n");
 
-	int newClient_socket = 0, n = 0;
+	int newClient_socket = 0, n = 0, found = 0;
 	Package pack;
 	size_t size = 0;
 	while (1) {
@@ -465,15 +494,22 @@ int main() {
 		Client_info newClient;
 		newClient.socket = newClient_socket;
 		// newClient.connected_group = (Grupo *)searchNode(groupsList, (Item)newGroup, compareGroups);
-
+		found = 0;
 		for (int i = 0; i < MAX_CONNECTIONS; i++) {
 			if (client_thread_status[i] == 0) {
 				client_thread_status[i] = 1;
 				newClient.index_client_thread_status = i;
 				pthread_create(&client_threads[i], NULL, (void *)client_handler, (void *)&newClient);
+				found = 1;
 				break;
 			}
 		}
+		printf("found:%d\n", found);
+		if (found == 0) {
+			close(newClient_socket);
+			printf("Servidor está cheio tenta mais tarde.\n");
+		}
+
 		// }
 	}
 
