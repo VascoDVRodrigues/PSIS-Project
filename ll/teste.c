@@ -1,29 +1,34 @@
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "linkedList-lib.h"
 
+typedef struct teste {
+	int a, b;
+} Dados;
+
+void printitem(Item i) {
+	Dados d = *(Dados*)i;
+
+	printf("%d %d\n", d.a, d.b);
+}
+
+void freeitem(Item i) {
+	free(i);
+	return;
+}
+
 int main() {
-	MainNode *grupos = createMainList();
+	Dados* d1 = malloc(sizeof(Dados));
+	d1->a = 6;
+	d1->b = 6;
+	LinkedList* lista = createList();
+	lista = insertNode(lista, (Item)d1);
 
-	SubNode *g1 = create_LinkedList();
+	printList(lista, printitem, 0);
 
-	g1 = insertNode("key99", "value1", g1);
-	g1 = insertNode("key2456", "value2", g1);
-	g1 = insertNode("key111233", "value3", g1);
+	clearList(lista, freeitem);
 
-	grupos = insertGroup(g1, "grupo1", grupos);
-
-	SubNode *g2 = create_LinkedList();
-
-	g2 = insertNode("key1", "value1", g2);
-	g2 = insertNode("key2", "value2", g2);
-	g2 = insertNode("key3", "value3", g2);
-
-	grupos = insertGroup(g1, "grupo2", grupos);
-
-	printGroups(grupos);
-
-	printf("\n---------------------\n");
-
-	MainNode *procura = searchGroup("grupo1", grupos);
-
-	printList(procura->GroupHead);
+	// free(d1);
+	return 0;
 }

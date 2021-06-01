@@ -1,10 +1,13 @@
 #include <arpa/inet.h>
+#include <fcntl.h> /* For O_* constants */
 #include <netinet/in.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h> /* For mode constants */
 #include <sys/types.h>
 #include <sys/un.h>
 #include <time.h>
@@ -13,6 +16,8 @@
 #include "linkedList-lib.h"
 
 #define SOCKNAME "/tmp/socket1"
+
+#define AUTHSERVER_IP "127.0.0.1"
 
 #define MESSAGE_SIZE 100
 #define MAX_CONNECTIONS 10
@@ -39,6 +44,8 @@ typedef struct _group {
 	// Talvez aqui por malloc
 	char groupID[1024];
 	int n_keyValues;
+	int deleted;	// se foi apagado
+	int connected;	// se existe alguma app ligada a este grupo
 } Grupo;
 
 // struct enviada ao client handler
@@ -51,6 +58,7 @@ typedef struct _client_info {
 
 // Struct que guarda o key|value
 typedef struct _keyValue {
+	void (*callback_func)(char*);
 	char key[128];
 	char* value;
 } KeyValue;

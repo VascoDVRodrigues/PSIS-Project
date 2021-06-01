@@ -1,34 +1,26 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <unistd.h>
+#ifndef _LISTA_H
+#define _LISTA_H
 
-typedef struct _node {
-	char *key;
-	char *value;
-	struct _node *next;
-} SubNode;
+/* def for pointer casts */
+#define Item void *
 
-typedef struct _main_node {
-	struct _node *GroupHead;
-	struct _main_node *next;
-} MainNode;
+/* type definition for structure to hold list item */
+typedef struct _LinkedList LinkedList;
 
-SubNode *create_LinkedList();
+LinkedList *createList(void);
 
-SubNode *insertNode(char *key, char *value, SubNode *head);
+LinkedList *insertNode(LinkedList *head, Item data);
 
-SubNode *searchNode(char *key, SubNode *head);
+LinkedList *deleteNode(LinkedList *head, Item data_to_delete, int compareItem(Item, Item), void freeItem(Item));
 
-SubNode *deleteNode(char *key, SubNode *head);
+LinkedList *updateNode(LinkedList *head, Item data_to_update, Item update, int compareItem(Item, Item), void freeItem(Item));
 
-int isEmpty(SubNode *node);
+Item *searchNode(LinkedList *head, Item data_to_find, int compareItem(Item, Item));
 
-void printList(SubNode *head);
+int numItens(LinkedList *head);
 
-void printNode(SubNode *node);
+void printList(LinkedList *head, void printItem(Item), int tabs);
 
-void updateValue(SubNode *node, char *newValue);
+LinkedList *clearList(LinkedList *head, void freeItem(Item));
+
+#endif
