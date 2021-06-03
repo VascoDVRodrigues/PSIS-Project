@@ -44,7 +44,7 @@ int establish_connection(char *group_id, char *secret) {
 }
 
 int put_value(char *key, char *value) {
-	printf("Value recebido na func: %s\n", value);
+	// printf("Value recebido na func: %s\n", value);
 	// VALUE TEM UMA DIMENSAO "INFINITA"
 	Package a;
 	a.mode = 1;

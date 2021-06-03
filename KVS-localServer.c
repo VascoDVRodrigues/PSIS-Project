@@ -1,3 +1,6 @@
+#define _GNU_SOURCE
+// por alguma razao extremamente desconhecida por isto aqui retira o warning do vscode a dizer q o rw_lock nao existe....
+
 #include "defs.h"
 
 Server_info_pack_INET auth_server;
@@ -9,7 +12,12 @@ LinkedList *apps;
 
 int client_thread_status[MAX_CONNECTIONS];
 
-sem_t *sema;
+pthread_rwlock_t rwLock_Glist;
+
+void printGroup(Item item) {
+	Grupo *g = (Grupo *)item;
+	printf("Groupid:%s\n", g->groupID);
+}
 
 void printKV(Item item) {
 	KeyValue data = *(KeyValue *)item;
@@ -38,6 +46,8 @@ int compareGroups(Item g1, Item g2) {
 
 	if (strcmp(data1.groupID, data2.groupID) == 0) {
 		return 1;
+	} else {
+		return 0;
 	}
 }
 
@@ -118,6 +128,9 @@ int setup_LocalServer(Server_info_pack *clients) {
 	groupsList = createList();
 	apps = createList();
 
+	// pthread_rwlock_destroy(&rwLock_Glist);
+	pthread_rwlock_init(&rwLock_Glist, NULL);  // initialize the read_write lock used in the groups list
+
 	for (int i = 0; i < MAX_CONNECTIONS; i++) {
 		client_thread_status[i] = 0;
 	}
@@ -153,9 +166,6 @@ int setup_LocalServer(Server_info_pack *clients) {
 	inet_aton(AUTHSERVER_IP, &auth_server.adress.sin_addr);
 	printf("Auth server socket created!! :)");
 	//////////localserver -- authserver socket///////////////////////
-	sem_unlink("my_semaphore");
-	sema = sem_open("my_semaphore", O_CREAT, 0666, 1);
-	sem_wait(sema);
 	return 0;
 }
 
@@ -197,9 +207,13 @@ void *server_UI(void *arg) {
 
 			// pesquisar na lista de grupos e colocar como desconectado
 			Grupo *g_delete;
-			g_delete = (Grupo *)searchNode(groupsList, (Item)&G_to_delete, compareGroups);
-			printf("g_delete: %p\n", g_delete);
-			g_delete->deleted = 1;
+			// pthread_rwlock_wrlock(&rwLock_Glist);
+			groupsList = deleteNode(groupsList, (Item)&G_to_delete, compareGroups, freeGroup);
+			// g_delete = (Grupo *)searchNode(groupsList, (Item)&G_to_delete, compareGroups);
+			// printf("g_delete: %p\n", g_delete);
+			// g_delete->deleted = 1;
+			printf("Apagado\n");
+			// pthread_rwlock_unlock(&rwLock_Glist);
 		} else if (option == 3) {  // Show group info
 			printf("Group ID to view info: ");
 			scanf("%s", pack.groupID);
@@ -234,6 +248,8 @@ void *client_handler(void *arg) {
 	int n = 0;
 	Package pack;
 	AppInfo *new_app;
+	Grupo *newGroup, *current;
+	char connected_group[1024];
 
 	n = recv(client.socket, (void *)&pack, sizeof(pack), 0);
 	printf("Client %d wants to connect to group %s, with secret %s\n", client.socket, pack.groupID, pack.secret);
@@ -248,18 +264,18 @@ void *client_handler(void *arg) {
 		printf("Autenticated sucessfully\n");
 
 		// Since the group exists we should add it to the groups list
-		Grupo *newGroup = calloc(1, sizeof(Grupo));
+		newGroup = calloc(1, sizeof(Grupo));
 		newGroup->keyValue_List = createList();	 // criar uma lista para guardar as key|value
 		newGroup->n_keyValues = 0;
 		newGroup->connected = 1;
 		newGroup->deleted = 0;
 		strcpy(newGroup->groupID, pack.groupID);
+		strcpy(connected_group, pack.groupID);
 
 		// ver se o grupo ja foi adicionado por outra app
 		if (searchNode(groupsList, (Item)newGroup, compareGroups) == NULL) {  // aka ainda n existe
 			groupsList = insertNode(groupsList, (Item)newGroup);
 		}
-
 		// comunicate to client, inside secret
 		strcpy(pack.secret, "accepted");
 		send(client.socket, (void *)&pack, sizeof(pack), 0);
@@ -286,7 +302,8 @@ void *client_handler(void *arg) {
 		send(client.socket, (void *)&pack, sizeof(pack), 0);
 		// Kill this thread
 		client_thread_status[client.index_client_thread_status] = 0;
-		pthread_exit((void *)1);
+		// pthread_exit((void *)1);
+		return NULL;
 	}
 
 	while (1) {
@@ -307,31 +324,52 @@ void *client_handler(void *arg) {
 
 			recv(client.socket, (void *)newData->value, size, 0);
 
-			if ((client.connected_group->deleted == 1) && (client.connected_group->connected != 0)) {
-				// apagar as variavais que nao vao ser usadas
-				free(newData->value);
-				free(newData);
-			} else {
-				if (searchNode(client.connected_group->keyValue_List, newData, compareKeys) == NULL) {
+			// pthread_rwlock_wrlock(&rwLock_Glist);
+			Grupo atual;
+			strcpy(atual.groupID, connected_group);
+
+			// pthread_rwlock_wrlock(&rwLock_Glist);
+			// printf("Inside rwlock region\n");
+			// sleep(5);
+			current = (Grupo *)searchNode(groupsList, (Item)&atual, compareGroups);
+
+			if (current != NULL) {	// o grupo ainda existe
+				// lock da lista pendurada neste grupo
+				// pthread_rwlock_wrlock(&current->KV_list_lock);
+				// como a lista a mecher ja esta bloqueada podemos desbloquear a lista de grupos
+
+				if (searchNode(current->keyValue_List, newData, compareKeys) == NULL) {
 					// a key ainda n existe, guardar na lista de key|value
-					client.connected_group->keyValue_List = insertNode(client.connected_group->keyValue_List, (Item)newData);
+					current->keyValue_List = insertNode(current->keyValue_List, (Item)newData);
 					// incrementar o numero de keys|values que o grupo já tem
-					client.connected_group->n_keyValues += 1;
+					current->n_keyValues += 1;
 				} else {
 					// Neste caso data to update e o proprio update sao iguais, pois a comparacão e feita tendo por base apenas a key
-					client.connected_group->keyValue_List =
-						updateNode(client.connected_group->keyValue_List, (Item)newData, (Item)newData, compareKeys, freeKeyValue);
+					current->keyValue_List = updateNode(current->keyValue_List, (Item)newData, (Item)newData, compareKeys, freeKeyValue);
 
 					// A KEY FOI UPDATED AQUI
 					// SINALIZAR TODAS AS APPS LIGADAS
-					// sem_post(sema);
-
-					// mas agr temos que fazer sem wait para as apps ficarem outra vez bloquadas
 				}
+				printList(groupsList, printGroup, 0);
+				// dar update na lista de grupos
+				groupsList = updateNode(groupsList, (Item)current, (Item)current, compareGroups, freeGroup);
+				printf("depois\n");
+				printList(groupsList, printGroup, 0);
+				// printList(current->keyValue_List, printKV, 0);
+
+				// pthread_rwlock_unlock(&current->KV_list_lock);
+				// pthread_rwlock_unlock(&rwLock_Glist);
 
 				strcpy(pack.secret, "accepted");
 				send(client.socket, (void *)&pack, sizeof(pack), 0);
+			} else {
+				// pthread_rwlock_unlock(&rwLock_Glist);
+				free(newData->value);
+				free(newData);
+				strcpy(pack.secret, "group-deleted");
+				send(client.socket, (void *)&pack, sizeof(pack), 0);
 			}
+
 		} else if (pack.mode == 0 && n > 0) {  // GET VALUE
 			KeyValue data_to_find;
 
@@ -377,12 +415,14 @@ void *client_handler(void *arg) {
 			// kvslib will send the app's PID, inside variable mode
 			recv(client.socket, (void *)&pack, sizeof(pack), 0);*/
 			// this app is closing so find the app in the apps list and set that to disconnected
-			AppInfo *app_closing = (AppInfo *)calloc(1, sizeof(AppInfo));
-
+			AppInfo app_closing1, *app_closing;
+			printf("oi\n");
+			// app_closing = (AppInfo *)calloc(1, sizeof(AppInfo));
+			printf("manel\n");
 			// app_closing->PID = pack.mode;
-			app_closing->PID = new_app->PID;
+			app_closing1.PID = new_app->PID;
 			// basta enviar a struct com o PID preenchido pois a comparacao e feita tendo por base o PID apenas
-			app_closing = (AppInfo *)searchNode(apps, (Item)app_closing, compareApps);
+			app_closing = (AppInfo *)searchNode(apps, (Item)&app_closing1, compareApps);
 
 			if (app_closing == NULL) {
 				printf("Algo de muito errado nao esta certo...\n");
@@ -450,19 +490,31 @@ void *client_handler(void *arg) {
 			strcpy(pack.secret, "declined");
 			send(client.socket, (void *)&pack, sizeof(pack), 0);
 		}
-
+		/*
 		if ((client.connected_group->deleted == 1) && (client.connected_group->connected != 0)) {
 			client.connected_group->connected = 0;
 			strcpy(pack.secret, "group-deleted");
 			send(client.socket, (void *)&pack, sizeof(pack), 0);
+		} else { */
+		Grupo atual1;
+		strcpy(atual1.groupID, connected_group);
+
+		// pthread_rwlock_rdlock(&rwLock_Glist);
+		current = (Grupo *)searchNode(groupsList, (Item)&atual1, compareGroups);
+		if (current != NULL) {
+			printList(current->keyValue_List, printKV, 0);
 		} else {
-			printList(client.connected_group->keyValue_List, printKV, 0);
+			printf("grupo nao existe\n");
 		}
+		// pthread_rwlock_unlock(&rwLock_Glist);
+		// printList(client.connected_group->keyValue_List, printKV, 0);
+
+		//}
 	}
-	if ((client.connected_group->deleted == 1) && (client.connected_group->connected == 0)) {
-		// client.connected_group->keyValue_List = clearList(client.connected_group->keyValue_List, freeKeyValue);
-		groupsList = deleteNode(groupsList, (Item)client.connected_group, compareGroups, freeGroup);
-	}
+	// if ((client.connected_group->deleted == 1) && (client.connected_group->connected == 0)) {
+	// client.connected_group->keyValue_List = clearList(client.connected_group->keyValue_List, freeKeyValue);
+	// groupsList = deleteNode(groupsList, (Item)client.connected_group, compareGroups, freeGroup);
+	//}
 	return NULL;
 }
 // pthread_equal(pthread_t t1, pthread_t t2);

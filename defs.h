@@ -41,6 +41,7 @@ typedef struct _server_info_pack {
 // Structs que estao na lista de listas
 typedef struct _group {
 	LinkedList* keyValue_List;
+	//pthread_rwlock_t KV_list_lock;
 	// Talvez aqui por malloc
 	char groupID[1024];
 	int n_keyValues;

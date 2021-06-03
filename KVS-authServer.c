@@ -111,8 +111,8 @@ int main() {
 					strcpy(pack.groupID, "accepted-group");
 					strcpy(pack.secret, "declined-secret");
 				} else {
-					//strcpy(pack.groupID, "accepted-group");
-					//strcpy(pack.secret, "accepted-secret");
+					// strcpy(pack.groupID, "accepted-group");
+					// strcpy(pack.secret, "accepted-secret");
 					pack.mode = 1;	// authentication was valid
 				}
 			}
