@@ -116,7 +116,6 @@ int main() {
 					pack.mode = 1;	// authentication was valid
 				}
 			}
-			sleep(2);
 		}
 
 		if (sendto(fd, &pack, sizeof(pack), 0, (struct sockaddr *)&client, client_address_size) < 0) {

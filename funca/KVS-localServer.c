@@ -15,7 +15,7 @@ LinkedList *apps;
 
 int client_thread_status[MAX_CONNECTIONS];
 
-pthread_rwlock_t Group_acess;
+pthread_rwlock_t Group_acess;  // serve para bloquear o acesso a todos os grupos
 
 void printKV(Item item) {
 	KeyValue data = *(KeyValue *)item;
@@ -209,10 +209,17 @@ void *server_UI(void *arg) {
 			scanf("%s", pack.groupID);
 
 			strcpy(pack.secret, randomString(5));
+
+			// Para simular o caso improvavel de alguem tentar conectar-se com a password
+			// certa enquanto o grupo esta a ser criado
+			// strcpy(pack.secret, "boi");
+
 			printf("Secret: %s\n", pack.secret);
 
 			pack.mode = 1;	// mode 1 ==> creating new group
 			// Group created, send info to auth server
+			pthread_rwlock_wrlock(&Group_acess);
+
 			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 
 			err = recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
@@ -221,7 +228,7 @@ void *server_UI(void *arg) {
 			} else {
 				printf("Received: %s\n", pack.groupID);
 			}
-
+			pthread_rwlock_unlock(&Group_acess);
 		} else if (option == 2) {  // Delete group
 			printf("Group ID to delete: ");
 			scanf("%s", pack.groupID);
@@ -229,6 +236,9 @@ void *server_UI(void *arg) {
 			Grupo G_to_delete;
 			strcpy(G_to_delete.groupID, pack.groupID);
 
+			pthread_rwlock_wrlock(&Group_acess);
+			printf("REgiao critica do delete group\n");
+			sleep(10);
 			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 
 			err = recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
@@ -244,7 +254,8 @@ void *server_UI(void *arg) {
 					g_delete->deleted = 1;
 				}
 			}
-
+			printf("\n\tleaving crit reagion\n");
+			pthread_rwlock_unlock(&Group_acess);
 		} else if (option == 3) {  // Show group info
 			printf("Group ID to view info: ");
 			scanf("%s", pack.groupID);
@@ -260,8 +271,8 @@ void *server_UI(void *arg) {
 			if (err < 0) {
 				printf("Timed out, try again later please\n");
 			} else {
-				//printf("Received: %s\n", pack.groupID);
-				
+				// printf("Received: %s\n", pack.groupID);
+
 				printf("Received: \n\tGroupID: %s\n\tSecret: %s\n", pack.groupID, pack.secret);
 
 				Grupo *grupo_found = (Grupo *)searchNode(groupsList, (Item)&grupo_to_find, compareGroups);
@@ -316,6 +327,10 @@ void *client_handler(void *arg) {
 	n = recv(client.socket, (void *)&pack, sizeof(pack), 0);
 	printf("Client %d wants to connect to group %s, with secret %s\n", client.socket, pack.groupID, pack.secret);
 
+	pthread_rwlock_wrlock(&Group_acess);  // a autenticacao comeca aqui
+	// printf("\n\tdentro da regiao critica da autenticacao\n");
+
+	// sleep(10);
 	// como o package e o mesmo e so mudar o modo
 	pack.mode = 10;
 	sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
@@ -340,11 +355,10 @@ void *client_handler(void *arg) {
 		strcpy(newGroup->groupID, pack.groupID);
 
 		// ver se o grupo ja foi adicionado por outra app
-		pthread_rwlock_wrlock(&Group_acess);
+
 		if (searchNode(groupsList, (Item)newGroup, compareGroups) == NULL) {  // aka ainda n existe
 			groupsList = insertNode(groupsList, (Item)newGroup);
 		}
-		pthread_rwlock_unlock(&Group_acess);
 
 		// comunicate to client, inside secret
 		strcpy(pack.secret, "accepted");
@@ -358,9 +372,7 @@ void *client_handler(void *arg) {
 		new_app->start = time(NULL);
 		apps = insertNode(apps, (Item)new_app);
 
-		pthread_rwlock_rdlock(&Group_acess);
 		client.connected_group = (Grupo *)searchNode(groupsList, (Item)newGroup, compareGroups);
-		pthread_rwlock_unlock(&Group_acess);
 		client.connected_group->connected += 1;
 
 		// wait for a new connect, but on the socket created for the callbacks
@@ -375,8 +387,9 @@ void *client_handler(void *arg) {
 				break;
 			}
 		}
-
+		pthread_rwlock_unlock(&Group_acess);
 	} else {  // authentication was not ok
+		pthread_rwlock_unlock(&Group_acess);
 		printf("Authentication NOT sucessfull :(\n");
 		if (strcmp(pack.groupID, "accepted-group") == 0) {
 			if (strcmp(pack.secret, "declined-secret") == 0) {	// correct group but wrong key
@@ -415,7 +428,7 @@ void *client_handler(void *arg) {
 			recv(client.socket, (void *)newData->value, size, 0);
 
 			// sleep(5);
-
+			pthread_rwlock_wrlock(&Group_acess);
 			if ((client.connected_group->deleted == 1) && (client.connected_group->connected != 0)) {
 				// apagar as variavais que nao vao ser usadas
 				free(newData->value);
@@ -443,12 +456,14 @@ void *client_handler(void *arg) {
 				strcpy(pack.secret, "accepted");
 				send(client.socket, (void *)&pack, sizeof(pack), 0);
 			}
+			pthread_rwlock_unlock(&Group_acess);
 		} else if (pack.mode == 0 && n > 0) {  // GET VALUE
 			KeyValue data_to_find;
 
 			// cliente mandou a key no pack
 			strcpy(data_to_find.key, pack.secret);
 
+			pthread_rwlock_rdlock(&Group_acess);
 			if (!((client.connected_group->deleted == 1) && (client.connected_group->connected != 0))) {
 				KeyValue *data = (KeyValue *)searchNode(client.connected_group->keyValue_List, (Item)&data_to_find, compareKeys);
 
@@ -469,6 +484,7 @@ void *client_handler(void *arg) {
 				}
 				// else do nothing
 			}
+			pthread_rwlock_unlock(&Group_acess);
 		} else if (pack.mode == 2 && n > 0) {  // DELETE VALUE
 			KeyValue data_to_delete;
 			strcpy(data_to_delete.key, pack.secret);
