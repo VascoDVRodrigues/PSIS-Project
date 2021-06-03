@@ -17,6 +17,8 @@ int client_thread_status[MAX_CONNECTIONS];
 
 pthread_rwlock_t Group_acess;  // serve para bloquear o acesso a todos os grupos
 
+pthread_rwlock_t Apps_acess;
+
 void printKV(Item item) {
 	KeyValue data = *(KeyValue *)item;
 	printf("%s|%s\n", data.key, data.value);
@@ -125,6 +127,7 @@ int setup_LocalServer(Server_info_pack *clients) {
 	apps = createList();
 
 	pthread_rwlock_init(&Group_acess, NULL);
+	pthread_rwlock_init(&Apps_acess, NULL);
 
 	for (int i = 0; i < MAX_CONNECTIONS; i++) {
 		client_thread_status[i] = 0;
@@ -274,7 +277,7 @@ void *server_UI(void *arg) {
 				// printf("Received: %s\n", pack.groupID);
 
 				printf("Received: \n\tGroupID: %s\n\tSecret: %s\n", pack.groupID, pack.secret);
-
+				pthread_rwlock_rdlock(&Group_acess);
 				Grupo *grupo_found = (Grupo *)searchNode(groupsList, (Item)&grupo_to_find, compareGroups);
 
 				if (grupo_found == NULL) {	// se o grupo ainda n esta na lista de grupos neste server é pq ainda n esta a guardar nada
@@ -282,10 +285,13 @@ void *server_UI(void *arg) {
 				} else {
 					printf("\tHas %d keys|values\n", grupo_found->n_keyValues);
 				}
+				pthread_rwlock_unlock(&Group_acess);
 			}
 
 		} else if (option == 4) {  // Show app status
+			pthread_rwlock_rdlock(&Apps_acess);
 			printList(apps, printApp, 0);
+			pthread_rwlock_unlock(&Apps_acess);
 		} else if (option == 5) {
 			clearList(groupsList, freeGroup);
 			clearList(apps, freeApps);
@@ -467,6 +473,7 @@ void *client_handler(void *arg) {
 			if (!((client.connected_group->deleted == 1) && (client.connected_group->connected != 0))) {
 				KeyValue *data = (KeyValue *)searchNode(client.connected_group->keyValue_List, (Item)&data_to_find, compareKeys);
 
+				pthread_rwlock_unlock(&Group_acess);
 				// SubNode *aux = searchNode(pack.key, client.connected_group->GroupHead);
 				if (data == NULL) {
 					strcpy(pack.secret, "declined");
@@ -483,11 +490,14 @@ void *client_handler(void *arg) {
 					send(client.socket, (void *)data->value, size, 0);
 				}
 				// else do nothing
+			} else {
+				pthread_rwlock_unlock(&Group_acess);
 			}
-			pthread_rwlock_unlock(&Group_acess);
+
 		} else if (pack.mode == 2 && n > 0) {  // DELETE VALUE
 			KeyValue data_to_delete;
 			strcpy(data_to_delete.key, pack.secret);
+			pthread_rwlock_wrlock(&Group_acess);
 			if (!((client.connected_group->deleted == 1) && (client.connected_group->connected != 0))) {
 				if (searchNode(client.connected_group->keyValue_List, (Item)&data_to_delete, compareKeys) == NULL) {
 					strcpy(pack.secret, "declined");
@@ -497,8 +507,9 @@ void *client_handler(void *arg) {
 					strcpy(pack.secret, "accepted");
 				}
 				send(client.socket, (void *)&pack, sizeof(pack), 0);
-			}									// else do nothing
-		} else if (pack.mode == 3 || n >= 0) {	// close connection
+			}
+			pthread_rwlock_unlock(&Group_acess);  // else do nothing
+		} else if (pack.mode == 3 || n >= 0) {	  // close connection
 			client.connected_group->connected -= 1;
 			/*
 			// kvslib will send the app's PID, inside variable mode
@@ -509,6 +520,7 @@ void *client_handler(void *arg) {
 			// app_closing->PID = pack.mode;
 			app_closing->PID = new_app->PID;
 			// basta enviar a struct com o PID preenchido pois a comparacao e feita tendo por base o PID apenas
+			pthread_rwlock_wrlock(&Apps_acess);
 			app_closing = (AppInfo *)searchNode(apps, (Item)app_closing, compareApps);
 
 			if (app_closing == NULL) {
@@ -522,7 +534,7 @@ void *client_handler(void *arg) {
 			// atualizar na lista
 			// envia-se no data to update e no proprio update a mm struct pois a comparacao e feita so com o PID
 			apps = updateNode(apps, (Item)app_closing, (Item)app_closing, compareApps, freeApps);
-
+			pthread_rwlock_unlock(&Apps_acess);
 			// finally set this tread as free
 			client_thread_status[client.index_client_thread_status] = 0;  // POSSIVEL MUTEX???
 			callbackSockets[client.callback_sock_index] = 0;
