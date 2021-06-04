@@ -91,7 +91,7 @@ void printApp(Item a) {
 	if (A.connected) {
 		printf("currently connected\n Started connection at %s\n", start);
 	} else {
-		printf("disconnected.\n Started connection at %s\nEnded connection at %s\n", start, end);
+		printf("disconnected.\n Started connection at %s\n Ended connection at %s\n", start, end);
 	}
 	return;
 }
@@ -425,9 +425,9 @@ void *client_handler(void *arg) {
 			// Cliente mandou a key no secret
 			strcpy(newData->key, pack.secret);
 
-			// Cliente vai mandar o tamanho do value e depois o value
-			size_t size = 0;
-			recv(client.socket, (void *)&size, sizeof(size_t), 0);
+			// Cliente mandou o tamanho do value no groupID
+			size_t size = atoi(pack.groupID);
+			// recv(client.socket, (void *)&size, sizeof(size_t), 0);
 
 			newData->value = (char *)malloc(sizeof(char) * size);
 

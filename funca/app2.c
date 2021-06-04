@@ -29,18 +29,18 @@ int main() {
 			a = establish_connection(group_id, secret);
 			printf("ret do establish: %d\n", a);
 			if (a == 0) {
-				printf("Established conNEECtion\n");
+				printf("Established conNEECtion :)\n");
 				break;
 			} else if (a == -1) {
 				printf("Correct Group, wrong password... :(\n");
 			} else if (a == -2) {
 				printf("No Group with same GroupId! :(\n");
 			} else if (a == -3) {
-				printf("Wrong Key! :(\n");
+				printf("Error in connection to server :(\n");
 			} else if (a == -5) {
 				printf("Full server, try again later!\n");
-			} else if (a == -6) {
-				printf("Timed out\n");
+			} else if (a == -4) {
+				printf("Timed out :(\n");
 			}
 		}
 		char *line;
