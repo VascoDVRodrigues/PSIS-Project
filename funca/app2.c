@@ -1,4 +1,7 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "KVS-lib.h"
 
@@ -56,7 +59,7 @@ int main() {
 				a = put_value(group_id, line);
 				if (a == 0) {
 					printf("funca\n");
-				} else if (a == -4) {
+				} else if (a == -2) {
 					printf("Grupo foi apagado\n");
 					break;
 				} else {

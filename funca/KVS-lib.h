@@ -1,11 +1,18 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <unistd.h>
-
+/*
+ * Function: establish_connection
+ * ----------------------------
+ *   Connects the app to the local server
+ *
+ *   group_id: id of the group trying to connect (MAX SIZE 1024)
+ *   secret: secret of the group trying to connect (MAX SIZE 1024)
+ *
+ *   returns: 0 if the connection was successfully made
+ * 		     -1 the group existes but the secret isn't correct
+ * 			 -2 the group doesn't exist
+ * 			 -3 error in the connection to the server
+ * 			 -4 timed out error
+ * 		     -5 Full server
+ */
 int establish_connection(char *group_id, char *secret);
 int put_value(char *key, char *value);
 int get_value(char *key, char **value);

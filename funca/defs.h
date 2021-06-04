@@ -19,7 +19,7 @@
 
 #define CALLBACKS_SOCK "/tmp/socket99"
 
-#define AUTHSERVER_IP "127.0.0.1"
+#define AUTHSERVER_IP "192.168.1.144"
 
 #define MESSAGE_SIZE 100
 #define MAX_CONNECTIONS 2

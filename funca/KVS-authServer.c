@@ -62,7 +62,6 @@ int main() {
 	while (1) {
 		printList(groups_list, printGroups, 0);
 		printf("--------------------\n");
-
 		if (recvfrom(fd, &pack, sizeof(pack), 0, (struct sockaddr *)&client, &client_address_size) < 0) {
 			perror("recvfrom()");
 			exit(4);
