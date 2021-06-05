@@ -146,7 +146,7 @@ int establish_connection(char *group_id, char *secret) {
 		return -4;
 	} else if (a <= 0) {
 		// the local server didn't respond at all
-		return -4;
+		return -5;
 	}
 }
 
@@ -162,6 +162,7 @@ int establish_connection(char *group_id, char *secret) {
  * 		     -1 there was an error saving the value on the local server
  * 			 -2 the group doesnt exist. Connection will be automatically closed
  * 			 -3 there was an error comunicating with the server
+ *
  */
 int put_value(char *key, char *value) {
 	Package a;
@@ -197,6 +198,7 @@ int put_value(char *key, char *value) {
 		// perror("recieving response");
 		return -3;
 	}
+	printf("received: %s\n", a.secret);
 	// The value was correctly stored on the local server
 	if (strcmp(a.secret, "accepted") == 0) {
 		return 0;
@@ -222,7 +224,7 @@ int put_value(char *key, char *value) {
  * 		     -1 there was an error retrieving the value from the local server
  * 			 -2 the group doesnt exist. Connection will be automatically closed
  *			 -3 there was an error comunicating with the server
- *
+ *			 -4 the key doesnt exist in that group
  */
 int get_value(char *key, char **value) {
 	Package a;
@@ -259,6 +261,8 @@ int get_value(char *key, char **value) {
 			return -3;
 		}
 		return 0;
+	} else if (strcmp(a.secret, "declined") == 0) {
+		return -4;
 	} else if (strcmp(a.secret, "group-deleted") == 0) {
 		// the group doesn't exist anymore. Must close the connection
 		close_connection();

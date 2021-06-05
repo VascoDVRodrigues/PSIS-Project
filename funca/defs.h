@@ -23,7 +23,7 @@
 
 #define AUTHSERVER_TIMEOUT 5  // timeout of 5 seconds
 
-#define MAX_CONNECTIONS 2
+#define MAX_CONNECTIONS 5
 
 #define RESET "\033[0m"
 #define BOLDGREEN "\033[1m\033[32m" /* Bold Green */
