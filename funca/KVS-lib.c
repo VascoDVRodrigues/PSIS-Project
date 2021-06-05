@@ -262,7 +262,7 @@ int get_value(char *key, char **value) {
 	} else if (strcmp(a.secret, "group-deleted") == 0) {
 		// the group doesn't exist anymore. Must close the connection
 		close_connection();
-		return -4;
+		return -2;
 	}
 	// there was an error retrieving the value from the local server
 	return -1;

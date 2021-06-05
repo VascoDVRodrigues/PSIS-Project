@@ -9,12 +9,16 @@ typedef struct _auth_grupo {
 // Linked List to save the groups data
 LinkedList *groups_list;
 
-void freeGroup(Item item) { return; }
+void freeGroup(Item item) {
+	Auth_grupo *g = (Auth_grupo *)item;
+	free(g->secret);
+	return;
+}
 
 /*
  * Function: printGroups
  * ----------------------------
- *   Prints the information inside de group that are saved on the linked list
+ *   Prints the information inside the group that are saved on the linked list
  *
  *   item: pointer to group to print
  *
@@ -38,8 +42,8 @@ void printGroups(Item item) {
  *   g1: Group 1 to compare
  *   g2: Group 2 to compare
  *
- *   returns: 0 if the groups are equal
- * 		      1 otherwise
+ *   returns: 1 if the groups are equal
+ * 		      0 otherwise
  *
  */
 int compareGroups(Item g1, Item g2) {

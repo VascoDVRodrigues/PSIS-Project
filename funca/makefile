@@ -12,10 +12,10 @@ KVS-authServer: KVS-authServer.c linkedList-lib.c
 	$(CC) $^ -o $@ $(CFLAGS)
 
 #METER AQUI TODAS AS APPS A COMPILAR
-apps: $(addprefix app, 2)
+apps: $(addprefix app, _interactive, _big_put)
 
-app%: app%.c KVS-lib.c linkedList-lib.c
+app%: app%.c KVS-lib.c
 	$(CC) $^ -o $@ $(CFLAGS) 
 
 clean:
-	rm KVS-localServer KVS-authServer app1 app2 teste -f
+	rm KVS-localServer KVS-authServer app_* teste -f

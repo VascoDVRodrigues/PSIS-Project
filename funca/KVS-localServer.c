@@ -17,12 +17,28 @@ int client_thread_status[MAX_CONNECTIONS];
 
 pthread_rwlock_t Group_acess, Apps_acess, callback_lock, threads_lock;
 
+/*
+ * Function: printKV
+ * ----------------------------
+ *   Prints the information about a key|value that are saved on the linked list
+ *
+ *   item: pointer to Key|value to print
+ *
+ */
 void printKV(Item item) {
 	KeyValue data = *(KeyValue *)item;
 	printf("%s|%s\n", data.key, data.value);
 	return;
 }
 
+/*
+ * Function: freeKeyValue
+ * ----------------------------
+ *   Frees a Key|value that are saved on the linked list
+ *
+ *   item: pointer to Key|value to delete
+ *
+ */
 void freeKeyValue(Item item) {
 	KeyValue *KV = (KeyValue *)item;
 	free(KV->value);
@@ -30,14 +46,32 @@ void freeKeyValue(Item item) {
 	return;
 }
 
+/*
+ * Function: freeGroup
+ * ----------------------------
+ *   Frees a group that are saved on the linked list
+ *
+ *   item: pointer to group to delete
+ *
+ */
 void freeGroup(Item item) {
 	Grupo *g = (Grupo *)item;
-
 	g->keyValue_List = clearList(g->keyValue_List, freeKeyValue);
-
 	free(g);
 }
 
+/*
+ * Function: compareGroups
+ * ----------------------------
+ *   Compares 2 groups that are saved on the linked list
+ *
+ *   g1: Group 1 to compare
+ *   g2: Group 2 to compare
+ *
+ *   returns: 1 if the groups are equal
+ * 		      0 otherwise
+ *
+ */
 int compareGroups(Item g1, Item g2) {
 	Grupo data1 = *(Grupo *)g1;
 	Grupo data2 = *(Grupo *)g2;
@@ -47,6 +81,18 @@ int compareGroups(Item g1, Item g2) {
 	}
 }
 
+/*
+ * Function: compareKeys
+ * ----------------------------
+ *   Compares 2 keys that are saved on the linked list
+ *
+ *   k1: Key 1 to compare
+ *   k2: Key 2 to compare
+ *
+ *   returns: 1 if the keys are equal
+ * 		      0 otherwise
+ *
+ */
 int compareKeys(Item k1, Item k2) {
 	KeyValue data1 = *(KeyValue *)k1;
 	KeyValue data2 = *(KeyValue *)k2;
@@ -58,6 +104,18 @@ int compareKeys(Item k1, Item k2) {
 	return 0;
 }
 
+/*
+ * Function: compareApps
+ * ----------------------------
+ *   Compares 2 apps that are saved on the linked list
+ *
+ *   a1: app 1 to compare
+ *   a2: app 2 to compare
+ *
+ *   returns: 1 if the apps are equal
+ * 		      0 otherwise
+ *
+ */
 int compareApps(Item a1, Item a2) {
 	AppInfo A1 = *(AppInfo *)a1;
 	AppInfo A2 = *(AppInfo *)a2;
@@ -68,13 +126,19 @@ int compareApps(Item a1, Item a2) {
 	return 0;
 }
 
+/*
+ * Function: printApp
+ * ----------------------------
+ *   Prints the information inside the app that are saved on the linked list
+ *
+ *   item: pointer to app to print
+ *
+ */
 void printApp(Item a) {
 	AppInfo A = *(AppInfo *)a;
 
-	// nao colocar a func ctime_r() dentro do printf, dá um output errado
-	// nao alterar o tamanho das strings senao da core dumped
-	// as strings teem 26 pq segundo a documentacao é o tamanho da string retornada pelo ctime_r
-	// NÃO MUDAR PARA A FUNC ctime() PORQUE NAO É THREAD SAFE
+	// Dont use ctime_r() inside the printf or ctime at all, check man page for details on thread safety
+	// Check man page of ctime_r to understand why start and end have size 26
 	char start[26], end[26];
 
 	if (ctime_r(&A.start, start) == NULL) {
@@ -99,31 +163,53 @@ void freeApps(Item a1) {
 	return;
 }
 
-// Cria e retorna uma random string com tamanho size
+/*
+ * Function: randomString
+ * ----------------------------
+ *   Generates a random string with length size
+ *
+ *   size: length of the string to generate
+ *
+ *   returns: Generated string
+ *
+ */
 char *randomString(int size) {
 	char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890\0";
+
 	char *randString = calloc(size, sizeof(char));
+
 	for (int i = 0; i < size; i++) {
 		randString[i] = chars[rand() % strlen(chars)];
 	}
+
 	randString[size + 1] = '\0';
 	return randString;
 }
 
 /*
-Sets up local server
-	creates and binds socket to comunicate with clients
-	creates socket to comunicate with authServer
-Returns:
-0: no errors
--1: Error creating stream socket
--2: Error binding stream socket
--3: Error Auth socket creation
-*/
+ * Function: setup_LocalServer
+ * ----------------------------
+ *   Creates and binds socket to comunicate with clients
+ * 	 Creates socket to comunicate with authServer
+ * 	 Creates socket to comunicate callbacks
+ * 	 Initializes all rw_locks
+ *	 Initializes all lists (groups and apps)
+ *
+ *   clients: struct that saves info about the clients that will connect to this server
+ *            Must be of the type Server_info_pack
+ *
+ *   returns: 0: no errors
+ *			 -1: Error creating stream socket
+ *			 -2: Error binding stream socket
+ *			 -3: Error Auth socket creation
+ *
+ */
 int setup_LocalServer(Server_info_pack *clients) {
+	// Initializes lists
 	groupsList = createList();
 	apps = createList();
 
+	// Initializes all rw_locks
 	pthread_rwlock_init(&Group_acess, NULL);
 	pthread_rwlock_init(&Apps_acess, NULL);
 	pthread_rwlock_init(&callback_lock, NULL);
@@ -134,7 +220,8 @@ int setup_LocalServer(Server_info_pack *clients) {
 		callbackSockets[i] = 0;
 	}
 
-	/// client -- localserver socket///////////////////////
+	// Creates and binds socket to comunicate with clients
+	// client <-> localserver
 	clients->adress.sun_family = AF_UNIX;
 	strcpy(clients->adress.sun_path, SOCKNAME);
 
@@ -151,10 +238,8 @@ int setup_LocalServer(Server_info_pack *clients) {
 		return -2;
 	}
 
-	printf("Socket created, has name %s\n", clients->adress.sun_path);
-	//////////client -- localserver socket///////////////////////
-
-	//////////localserver -- authserver socket///////////////////////
+	// Creates socket to comunicate with authServer
+	// localserver <-> authserver
 	if ((auth_server.socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		perror("Auth socket creation");
 		return -3;
@@ -164,14 +249,18 @@ int setup_LocalServer(Server_info_pack *clients) {
 	auth_server.adress.sin_port = htons(8080);
 	inet_aton(AUTHSERVER_IP, &auth_server.adress.sin_addr);
 
+	// set a timeout for the auth server
+	// in future connections if the server doesn't respond in AUTHSERVER_TIMEOUT seconds
+	// an error will be return
 	struct timeval timeout;
-	timeout.tv_sec = 5;
+	timeout.tv_sec = AUTHSERVER_TIMEOUT;
 	timeout.tv_usec = 0;
-	// man setsockopt e man 7 socket para perceber as flags
-	setsockopt(auth_server.socket, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof timeout);
-	//////////localserver -- authserver socket///////////////////////
 
-	// local-server --> kvslib CALBACK SOCKET/////////////////
+	// man setsockopt e man 7 socket to understand this flags
+	setsockopt(auth_server.socket, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof timeout);
+
+	// Creates socket to comunicate callbacks
+	// local-server <-> kvs-lib callback
 	callbacks_server.adress.sun_family = AF_UNIX;
 	strcpy(callbacks_server.adress.sun_path, CALLBACKS_SOCK);
 
@@ -188,11 +277,18 @@ int setup_LocalServer(Server_info_pack *clients) {
 		return -2;
 	}
 
-	////////////////////////////////////////////////////////////////////////////////
-
 	return 0;
 }
 
+/*
+ * Function: server_UI
+ * ----------------------------
+ *   Implements the local server user interface
+ * 	 Runs as a separated thread
+ *
+ *   arg: pointer to struct with info about auth server
+ *
+ */
 void *server_UI(void *arg) {
 	Server_info_pack auth_server = *(Server_info_pack *)arg;
 
@@ -205,168 +301,192 @@ void *server_UI(void *arg) {
 		printf("4. Show app status\n5. Exit\n");
 		printf("\tChoose one option: ");
 		scanf("%d", &option);
-		if (option == 1) {
+		if (option == 1) {	// create group
 			printf("Group identifier: ");
 			scanf("%s", pack.groupID);
 
+			// generate a new random string to be the secret
 			strcpy(pack.secret, randomString(5));
 
-			// Para simular o caso improvavel de alguem tentar conectar-se com a password
-			// certa enquanto o grupo esta a ser criado
-			// strcpy(pack.secret, "boi");
+			// Uncomment this to simulate the improbable case of someone trying to connect with the correct password
+			// of the group that is being created
+			// strcpy(pack.secret, "known_secret");
 
-			pack.mode = 1;	// mode 1 ==> creating new group
-			// Group created, send info to auth server
+			pack.mode = 1;
+
+			// block write to all groups
 			pthread_rwlock_wrlock(&Group_acess);
 
+			// Send request to auth server
 			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 
 			err = recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
 			if (err < 0) {
 				printf("Timed out, try again later please ⌛️\n");
 			} else {
-				// printf("Received: %s\n", pack.groupID);
 				printf("Secret: %s\n", pack.secret);
 			}
+			// unblock the groups
 			pthread_rwlock_unlock(&Group_acess);
 		} else if (option == 2) {  // Delete group
 			printf("Group ID to delete: ");
 			scanf("%s", pack.groupID);
+
 			pack.mode = 2;
 			Grupo G_to_delete;
 			strcpy(G_to_delete.groupID, pack.groupID);
 
+			// block write acess to all groups
 			pthread_rwlock_wrlock(&Group_acess);
-			// printf("REgiao critica do delete group\n");
-			// sleep(5);
+
+			// Send request to server to delete the group
 			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 
 			err = recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
 			if (err < 0) {
 				printf("Timed out, try again later please ⌛️\n");
+				pthread_rwlock_unlock(&Group_acess);
 			} else {
-				printf("Group successfully deleted! ✔️");
-				// printf("Received: %s\n", pack.groupID);
-				// pesquisar na lista de grupos e colocar como desconectado
+				// if theres no error delete from the list
 				Grupo *g_delete;
 				g_delete = (Grupo *)searchNode(groupsList, (Item)&G_to_delete, compareGroups);
 				if (g_delete != NULL) {
-					// printf("g_delete: %p\n", g_delete);
-					g_delete->deleted = 1;
+					groupsList = deleteNode(groupsList, (Item)&G_to_delete, compareGroups, freeGroup);
 				}
+				pthread_rwlock_unlock(&Group_acess);
 			}
-			// printf("\n\tleaving crit reagion\n");
-			pthread_rwlock_unlock(&Group_acess);
 		} else if (option == 3) {  // Show group info
 			printf("Group ID to view info: ");
 			scanf("%s", pack.groupID);
 			pack.mode = 3;
 
-			// search this group in the groups list to display #keys|values
 			Grupo grupo_to_find;
 			strcpy(grupo_to_find.groupID, pack.groupID);
 
+			// Send request to auth server
 			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 
 			err = recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
 			if (err < 0) {
 				printf("Timed out, try again later please ⌛️\n");
 			} else {
-				// printf("Received: %s\n", pack.groupID);
-
-				// printf("Received: \n\tGroupID: %s\n\tSecret: %s\n", pack.groupID, pack.secret);
-
 				if (strcmp(pack.groupID, "group-doesnt-exist") == 0) {
 					printf("This group doesn't exist ❌\n");
 				} else {
+					// Block all groups for reading
 					pthread_rwlock_rdlock(&Group_acess);
+					// search this group in the groups list to display #keys|values
 					Grupo *grupo_found = (Grupo *)searchNode(groupsList, (Item)&grupo_to_find, compareGroups);
 
-					if (grupo_found == NULL) {	// se o grupo ainda n esta na lista de grupos neste server é pq ainda n esta a guardar nada
+					if (grupo_found == NULL) {	// if the group exist on auth server but is not here locally
+						pthread_rwlock_unlock(&Group_acess);
 						printf("\tThis group doesn't exist here ❌\n");
-					} else {
+					} else {  // display #keys|values
 						printf("\tHas %d keys|values 🔑\n", grupo_found->n_keyValues);
+						pthread_rwlock_unlock(&Group_acess);
 					}
-					pthread_rwlock_unlock(&Group_acess);
 				}
 			}
 		} else if (option == 4) {  // Show app status
+
+			// Block all apps for reading
 			pthread_rwlock_rdlock(&Apps_acess);
 			printList(apps, printApp, 0);
 			pthread_rwlock_unlock(&Apps_acess);
-		} else if (option == 5) {
+		} else if (option == 5) {  // Exit
+			// clear variables
 			clearList(groupsList, freeGroup);
 			clearList(apps, freeApps);
 			for (int i = 0; i < MAX_CONNECTIONS; i++) {
 				close(callbackSockets[i]);
 			}
 			close(auth_server.socket);
+
+			// and destroy rw_locks
+			pthread_rwlock_destroy(&Group_acess);
+			pthread_rwlock_destroy(&Apps_acess);
+			pthread_rwlock_destroy(&callback_lock);
+			pthread_rwlock_destroy(&threads_lock);
 			exit(1);
 			break;
 		}
 	}
 }
 
+/*
+ * Function: callback_handler
+ * ----------------------------
+ *   Comunicates to all clients that a certain key's value was altered
+ * 	 This function runs in a separated thread
+ *
+ *   arg: string containing the key that was altered
+ *
+ */
 void *callback_handler(void *arg) {
 	char *alteredKey = (char *)arg;
 
-	// printf("\t\tI will send a message to all clients callback socks\n");
-	// printf("Because key %s was altered\n", alteredKey);
-	// sleep(10);
-
 	Package pack;
 	strcpy(pack.secret, alteredKey);
+
+	// lock the callback Sockets array for reading
 	pthread_rwlock_rdlock(&callback_lock);
 	for (int i = 0; i < MAX_CONNECTIONS; i++) {
 		if (callbackSockets[i] != 0) {
+			// send the same message to all clients
 			send(callbackSockets[i], (void *)&pack, sizeof(pack), 0);
-			// printf("\t\tdone\n");
 		}
 	}
 	pthread_rwlock_unlock(&callback_lock);
 }
 
+/*
+ * Function: client_handler
+ * ----------------------------
+ *   Handles the client connected to the server (authentication and future operations)
+ * 	 This function runs in a separated thread
+ * 	 Each new client has a dedicated thread that runs this function
+ *
+ *   arg: struct with client information (must be of type Client_info)
+ *
+ */
 void *client_handler(void *arg) {
 	Client_info client = *(Client_info *)arg;
-	int n = 0;
+	int n = 0, x = 0, new_callback_sock;
 	Package pack;
 	AppInfo *new_app;
 	pthread_t callback_th;
-	int new_callback_sock;
 
+	// client sent the groupID and the secret
 	n = recv(client.socket, (void *)&pack, sizeof(pack), 0);
-	// printf("Client %d wants to connect to group %s, with secret %s\n", client.socket, pack.groupID, pack.secret);
 
-	pthread_rwlock_wrlock(&Group_acess);  // a autenticacao comeca aqui
-	// printf("\n\tdentro da regiao critica da autenticacao\n");
+	pthread_rwlock_wrlock(&Group_acess);  // Authentication starts here
+	// Lock here all groups
 
 	// sleep(10);
-	// como o package e o mesmo e so mudar o modo
+	// Package to send to the auth server is the same that was received, just change the mode
 	pack.mode = 10;
 	sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 
 	// process response from auth server
-	int x = recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
+	x = recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
 	if (x < 0) {
-		// printf("TIMED OUT\n");
+		// the server didnt respond in time
 		pack.mode = 0;
 		strcpy(pack.groupID, "timed-out");
 	}
 
 	if (pack.mode == 1) {  // authentication was ok
-		// printf("Autenticated sucessfully\n");
 
 		// Since the group exists we should add it to the groups list
 		Grupo *newGroup = calloc(1, sizeof(Grupo));
-		newGroup->keyValue_List = createList();	 // criar uma lista para guardar as key|value
+		newGroup->keyValue_List = createList();	 // list to store keys|values
 		newGroup->n_keyValues = 0;
-		newGroup->connected = 0;
-		newGroup->deleted = 0;
+
 		strcpy(newGroup->groupID, pack.groupID);
 
-		// ver se o grupo ja foi adicionado por outra app
-
-		if (searchNode(groupsList, (Item)newGroup, compareGroups) == NULL) {  // aka ainda n existe
+		// Check if it was already added to the list by other app
+		if (searchNode(groupsList, (Item)newGroup, compareGroups) == NULL) {  
+			//the group doesn't exist yet
 			groupsList = insertNode(groupsList, (Item)newGroup);
 		}
 
@@ -376,24 +496,25 @@ void *client_handler(void *arg) {
 
 		// the kvslib will send the client PID, in pack.mode
 		recv(client.socket, (void *)&pack, sizeof(pack), 0);
+
+		// Save it in the apps list
 		new_app = (AppInfo *)calloc(1, sizeof(AppInfo));
 		new_app->connected = 1;
 		new_app->PID = pack.mode;
 		new_app->start = time(NULL);
 		apps = insertNode(apps, (Item)new_app);
 
+		// Save a pointer to the group that the client asked to connect
 		client.connected_group = (Grupo *)searchNode(groupsList, (Item)newGroup, compareGroups);
-		client.connected_group->connected += 1;
 
-		// wait for a new connect, but on the socket created for the callbacks
+		// Wait for a new connect, but on the socket created for the callbacks
 		new_callback_sock = accept(callbacks_server.socket, NULL, NULL);
-		if (new_callback_sock != -1) {
-			// printf("Connected to %d\n", new_callback_sock);
-		}
 
+		// lock for writing the callbackSockets array
 		pthread_rwlock_wrlock(&callback_lock);
 		for (int i = 0; i < MAX_CONNECTIONS; i++) {
 			if (callbackSockets[i] == 0) {
+				// save this client callback socket so in the future we can comunicate callbacks
 				callbackSockets[i] = new_callback_sock;
 				client.callback_sock_index = i;
 				break;
@@ -402,22 +523,24 @@ void *client_handler(void *arg) {
 		pthread_rwlock_unlock(&callback_lock);
 		pthread_rwlock_unlock(&Group_acess);  // the authentication ends here and not before the attribution
 											  // of the callback socket
-	} else {								  // authentication was not ok
-		pthread_rwlock_unlock(&Group_acess);
-		// printf("Authentication NOT sucessfull :(\n");
+	} else {
+		// authentication was not ok
+		pthread_rwlock_unlock(&Group_acess);  // no need to acess the groups list, nothing will be saved
+
 		if (strcmp(pack.groupID, "accepted-group") == 0) {
-			if (strcmp(pack.secret, "declined-secret") == 0) {	// correct group but wrong key
+			if (strcmp(pack.secret, "declined-secret") == 0) {	// correct groupID but wrong key
 				strcpy(pack.groupID, "accepted-group");
 				strcpy(pack.secret, "declined-secret");
 			}
-		} else if (strcmp(pack.groupID, "declined-group") == 0) {
+		} else if (strcmp(pack.groupID, "declined-group") == 0) {  // wrong groupID
 			strcpy(pack.secret, "declined-group");
-		} else if (strcmp(pack.groupID, "timed-out") == 0) {
+		} else if (strcmp(pack.groupID, "timed-out") == 0) {  // server timed out
 			strcpy(pack.secret, "timed-out");
 		}
 
 		// comunicate to client
 		send(client.socket, (void *)&pack, sizeof(pack), 0);
+
 		// Kill this thread
 		pthread_rwlock_wrlock(&threads_lock);
 		client_thread_status[client.index_client_thread_status] = 0;
@@ -425,130 +548,144 @@ void *client_handler(void *arg) {
 		pthread_exit((void *)1);
 	}
 
-	while (1) {
+	while (1) {	 // wait for client requests
 		n = recv(client.socket, (void *)&pack, sizeof(pack), 0);
 
-		// printf("Received %d bytes, mode: %d groupID: %s secret: %s\n", n, pack.mode, pack.groupID, pack.secret);
 		if (pack.mode == 1 && n > 0) {	// PUT VALUE
 			KeyValue *newData = calloc(1, sizeof(KeyValue));
 
-			// Cliente mandou a key no secret
+			// Client sent key inside secret
 			strcpy(newData->key, pack.secret);
 
-			// Cliente mandou o tamanho do value no groupID
+			// Client sent the size of the value inside groupID
 			size_t size = atoi(pack.groupID);
-			// recv(client.socket, (void *)&size, sizeof(size_t), 0);
 
+			// allocate memory to save the value with the received size
 			newData->value = (char *)malloc(sizeof(char) * size);
 
+			// and save the actual value
 			recv(client.socket, (void *)newData->value, size, 0);
 
-			// sleep(5);
+			// block all groups for writing
 			pthread_rwlock_wrlock(&Group_acess);
-			if ((client.connected_group->deleted == 1) && (client.connected_group->connected != 0)) {
-				// apagar as variavais que nao vao ser usadas
-				free(newData->value);
-				free(newData);
-			} else {
+
+			// update the pointer to the connected group
+			client.connected_group = (Grupo *)searchNode(groupsList, (Item)client.connected_group, compareGroups);
+
+			if (client.connected_group != NULL) {  // still exists
+				// search for the key inside the key|value list of this group
 				KeyValue *found = (KeyValue *)searchNode(client.connected_group->keyValue_List, newData, compareKeys);
 				if (found == NULL) {
-					// a key ainda n existe, guardar na lista de key|value
+					// this key doesn't exist, save
 					client.connected_group->keyValue_List = insertNode(client.connected_group->keyValue_List, (Item)newData);
-					// incrementar o numero de keys|values que o grupo já tem
 					client.connected_group->n_keyValues += 1;
 				} else {
-					// ver se o update é a mesma coisa do que ja la esta
+					// the key exists
+					// check if the update is what it was already being saved
 					if (strcmp(found->value, newData->value) != 0) {
-						// Neste caso data to update e o proprio update sao iguais, pois a comparacão e feita tendo por base apenas a key
+						// if not lets update the key
 						client.connected_group->keyValue_List =
 							updateNode(client.connected_group->keyValue_List, (Item)newData, (Item)newData, compareKeys, freeKeyValue);
+						// the data_to_find and update arguments are the same variable because the comparation of 2 keys
+						// is only based on the key name and not on the value that it saves
 
-						// A KEY FOI UPDATED AQUI
-						// SINALIZAR TODAS AS APPS LIGADAS
+						// as the key was updated, notify all clients
 						pthread_create(&callback_th, NULL, (void *)callback_handler, (void *)&newData->key);
-					}
+					}  // else there was no actual update
 				}
-
+				pthread_rwlock_unlock(&Group_acess);  // unlock all groups
 				strcpy(pack.secret, "accepted");
 				send(client.socket, (void *)&pack, sizeof(pack), 0);
+			} else {
+				pthread_rwlock_unlock(&Group_acess);
 			}
-			pthread_rwlock_unlock(&Group_acess);
+
 		} else if (pack.mode == 0 && n > 0) {  // GET VALUE
 			KeyValue data_to_find;
 
-			// cliente mandou a key no pack
+			// client sent the key on pack.secret
 			strcpy(data_to_find.key, pack.secret);
 
-			pthread_rwlock_rdlock(&Group_acess);
-			if (!((client.connected_group->deleted == 1) && (client.connected_group->connected != 0))) {
+	 		// block all groups for reading
+			pthread_rwlock_rdlock(&Group_acess); 
+			// update the pointer to the connected group
+			client.connected_group = (Grupo *)searchNode(groupsList, (Item)client.connected_group, compareGroups);
+			if (client.connected_group != NULL) {  // group still exists
+				// search for the key
 				KeyValue *data = (KeyValue *)searchNode(client.connected_group->keyValue_List, (Item)&data_to_find, compareKeys);
 
-				pthread_rwlock_unlock(&Group_acess);
-				// SubNode *aux = searchNode(pack.key, client.connected_group->GroupHead);
-				if (data == NULL) {
+				pthread_rwlock_unlock(&Group_acess);  // unlock all the groups
+
+				if (data == NULL) {	 // key doesnt exist in this group
 					strcpy(pack.secret, "declined");
 					send(client.socket, (void *)&pack, sizeof(pack), 0);
-				} else {
-					// Como encontramos vamos enviar esta informacao
+				} else {  // key exists
 					strcpy(pack.secret, "accepted");
 					send(client.socket, (void *)&pack, sizeof(pack), 0);
 
-					// agora vamos enviar o tamanho do value e depois o value
+					// send the size of the value and then the actual value
 					size_t size = strlen(data->value) + 1;
 					send(client.socket, (void *)&size, sizeof(size), 0);
 
 					send(client.socket, (void *)data->value, size, 0);
 				}
-				// else do nothing
-			} else {
+
+			} else {  
 				pthread_rwlock_unlock(&Group_acess);
 			}
-
 		} else if (pack.mode == 2 && n > 0) {  // DELETE VALUE
 			KeyValue data_to_delete;
+
+			// client sent the key to delete in pack.secret
 			strcpy(data_to_delete.key, pack.secret);
-			pthread_rwlock_wrlock(&Group_acess);
-			if (!((client.connected_group->deleted == 1) && (client.connected_group->connected != 0))) {
+
+			pthread_rwlock_wrlock(&Group_acess);  // block all groups for reading
+			// update the pointer to the connected group
+			client.connected_group = (Grupo *)searchNode(groupsList, (Item)client.connected_group, compareGroups);
+			if (client.connected_group != NULL) {  // group still exists
+				// search for the key
 				if (searchNode(client.connected_group->keyValue_List, (Item)&data_to_delete, compareKeys) == NULL) {
+					// key doesn't exist in this group
 					strcpy(pack.secret, "declined");
 				} else {
+					// key exists, delete it
 					client.connected_group->keyValue_List =
 						deleteNode(client.connected_group->keyValue_List, (Item)&data_to_delete, compareKeys, freeKeyValue);
 					strcpy(pack.secret, "accepted");
 				}
 				send(client.socket, (void *)&pack, sizeof(pack), 0);
-			}
-			pthread_rwlock_unlock(&Group_acess);  // else do nothing
-		} else if (pack.mode == 3 || n >= 0) {	  // close connection
-			client.connected_group->connected -= 1;
-
+			}  // else do nothing
+			pthread_rwlock_unlock(&Group_acess);
+		} else if (pack.mode == 3 || n >= 0) {	// close connection
 			// this app is closing so find the app in the apps list and set that to disconnected
 			AppInfo *app_closing = (AppInfo *)calloc(1, sizeof(AppInfo));
 
 			// app_closing->PID = pack.mode;
 			app_closing->PID = new_app->PID;
-			// basta enviar a struct com o PID preenchido pois a comparacao e feita tendo por base o PID apenas
+			// the compare of apps is based on the pid only
 			pthread_rwlock_wrlock(&Apps_acess);
 			app_closing = (AppInfo *)searchNode(apps, (Item)app_closing, compareApps);
 
-			/*
+			// sanity check this pointer will never be NULL
 			if (app_closing == NULL) {
-				printf("Algo de muito errado nao esta certo...\n");
-			}*/
+				printf("Something is very wrong...\n");
+			}
 
-			// dar update da flag e colocar data em q desligou
+			// Update the status of the app and the time it ended connection
 			app_closing->end = time(NULL);
 			app_closing->connected = 0;
 
-			// atualizar na lista
-			// envia-se no data to update e no proprio update a mm struct pois a comparacao e feita so com o PID
+			// update apps list
+			// the compare of apps is based on the pid only
 			apps = updateNode(apps, (Item)app_closing, (Item)app_closing, compareApps, freeApps);
+
 			pthread_rwlock_unlock(&Apps_acess);
 			// finally set this tread as free
 			pthread_rwlock_wrlock(&threads_lock);
 			client_thread_status[client.index_client_thread_status] = 0;
 			pthread_rwlock_unlock(&threads_lock);
 
+			// also set this socket as free
 			pthread_rwlock_wrlock(&callback_lock);
 			callbackSockets[client.callback_sock_index] = 0;
 			pthread_rwlock_unlock(&callback_lock);
@@ -556,76 +693,52 @@ void *client_handler(void *arg) {
 		} else if (pack.mode == 4 && n > 0) {  // register callback
 			KeyValue data_to_find;
 
-			// cliente mandou a key no pack
+			// client sent the key inside pack.secret
 			strcpy(data_to_find.key, pack.secret);
 
-			KeyValue *data = (KeyValue *)searchNode(client.connected_group->keyValue_List, (Item)&data_to_find, compareKeys);
+			pthread_rwlock_rdlock(&Group_acess);
 
-			if (data == NULL) {
-				strcpy(pack.groupID, "declined");
-				send(client.socket, (void *)&pack, sizeof(pack), 0);
+			// update the pointer to the connected group
+			client.connected_group = (Grupo *)searchNode(groupsList, (Item)client.connected_group, compareGroups);
+
+			if (client.connected_group != NULL) {  // still exists
+				KeyValue *data = (KeyValue *)searchNode(client.connected_group->keyValue_List, (Item)&data_to_find, compareKeys);
+				pthread_rwlock_unlock(&Group_acess);
+				if (data == NULL) {	 // key doesn't exist
+					strcpy(pack.groupID, "declined");
+					send(client.socket, (void *)&pack, sizeof(pack), 0);
+				} else {
+					// Key exists
+					strcpy(pack.groupID, "accepted");
+					send(client.socket, (void *)&pack, sizeof(pack), 0);
+				}
 			} else {
-				// Como encontramos vamos enviar esta informacao
-				strcpy(pack.groupID, "accepted");
-				send(client.socket, (void *)&pack, sizeof(pack), 0);
+				pthread_rwlock_unlock(&Group_acess);
 			}
 
-		} else if (n == 0) {
-			// TEprintf("Nada\n");
-			/*client.connected_group->connected = 0;
-
-			// kvslib will send the app's PID, inside variable mode
-			recv(client.socket, (void *)&pack, sizeof(pack), 0);*/
-			// this app is closing so find the app in the apps list and set that to disconnected
-			/*AppInfo *app_closing = (AppInfo *)calloc(1, sizeof(AppInfo));
-
-			// app_closing->PID = pack.mode;
-			app_closing->PID = new_app->PID;
-			// basta enviar a struct com o PID preenchido pois a comparacao e feita tendo por base o PID apenas
-			app_closing = (AppInfo *)searchNode(apps, (Item)app_closing, compareApps);
-
-			if (app_closing == NULL) {
-				printf("Algo de muito errado nao esta certo...\n");
-			}
-
-			// dar update da flag e colocar data em q desligou
-			app_closing->end = time(NULL);
-			app_closing->connected = 0;
-
-			// atualizar na lista
-			// envia-se no data to update e no proprio update a mm struct pois a comparacao e feita so com o PID
-			apps = updateNode(apps, (Item)app_closing, (Item)app_closing, compareApps, freeApps);
-
-			// finally set this tread as free
-			client_thread_status[client.index_client_thread_status] = 0;  // POSSIVEL MUTEX???
-			break;*/
 		} else {
-			printf("else\n");
 			strcpy(pack.secret, "declined");
 			send(client.socket, (void *)&pack, sizeof(pack), 0);
 		}
 
-		if ((client.connected_group->deleted == 1) && (client.connected_group->connected > 0)) {
-			// isto vai ser posto do close connection
-			// client.connected_group->connected -= 1;
+		// if the client.connected group is null it means it was deleted
+		if (client.connected_group == NULL) {
 			strcpy(pack.secret, "group-deleted");
 			send(client.socket, (void *)&pack, sizeof(pack), 0);
-		} else {
-			// printList(client.connected_group->keyValue_List, printKV, 0);
 		}
-	}
-	if ((client.connected_group->deleted == 1) && (client.connected_group->connected == 0)) {
-		// client.connected_group->keyValue_List = clearList(client.connected_group->keyValue_List, freeKeyValue);
-		groupsList = deleteNode(groupsList, (Item)client.connected_group, compareGroups, freeGroup);
 	}
 	return NULL;
 }
-// pthread_equal(pthread_t t1, pthread_t t2);
+
 int main() {
 	srand(time(NULL));
 	pthread_t client_threads[MAX_CONNECTIONS];
 
 	Server_info_pack clients;
+
+	int newClient_socket = 0, n = 0, found = 0;
+	Package pack;
+	size_t size = 0;
 
 	setup_LocalServer(&clients);
 
@@ -635,19 +748,16 @@ int main() {
 	listen(callbacks_server.socket, 10);
 	listen(clients.socket, 10);
 
-	int newClient_socket = 0, n = 0, found = 0;
-	Package pack;
-	size_t size = 0;
 	while (1) {
-		// while (1) {
 		newClient_socket = accept(clients.socket, NULL, NULL);
 
-		// Contruir o package que vai ser enviado para a thread que trata deste cliente
+		// build the package that will be sent to the thread that will handle this new client
 		Client_info newClient;
 		newClient.socket = newClient_socket;
-		// newClient.connected_group = (Grupo *)searchNode(groupsList, (Item)newGroup, compareGroups);
+
 		found = 0;
 		pthread_rwlock_wrlock(&threads_lock);
+		// check if #MAX_CONNECTIONS was reached
 		for (int i = 0; i < MAX_CONNECTIONS; i++) {
 			if (client_thread_status[i] == 0) {
 				client_thread_status[i] = 1;
@@ -662,10 +772,7 @@ int main() {
 			close(newClient_socket);
 			printf("The server is full 👥\n");
 		}
-
-		// }
 	}
-
 	close(clients.socket);
 	unlink(SOCKNAME);
 }

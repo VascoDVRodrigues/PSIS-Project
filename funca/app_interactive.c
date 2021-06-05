@@ -1,28 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 
-#define RESET   "\033[0m"
-#define BLACK   "\033[30m"      /* Black */
-#define RED     "\033[31m"      /* Red */
-#define GREEN   "\033[32m"      /* Green */
-#define YELLOW  "\033[33m"      /* Yellow */
-#define BLUE    "\033[34m"      /* Blue */
-#define MAGENTA "\033[35m"      /* Magenta */
-#define CYAN    "\033[36m"      /* Cyan */
-#define WHITE   "\033[37m"      /* White */
-#define BOLDBLACK   "\033[1m\033[30m"      /* Bold Black */
-#define BOLDRED     "\033[1m\033[31m"      /* Bold Red */
-#define BOLDGREEN   "\033[1m\033[32m"      /* Bold Green */
-#define BOLDYELLOW  "\033[1m\033[33m"      /* Bold Yellow */
-#define BOLDBLUE    "\033[1m\033[34m"      /* Bold Blue */
-#define BOLDMAGENTA "\033[1m\033[35m"      /* Bold Magenta */
-#define BOLDCYAN    "\033[1m\033[36m"      /* Bold Cyan */
-#define BOLDWHITE   "\033[1m\033[37m"      /* Bold White */
+#define BOLDWHITE "\033[1m\033[37m"	  /* Bold White */
 
 #include "KVS-lib.h"
 
+//exemple of function to be executed whenever a key's value is updated
 void keyALterada(char *key) {
 	printf("\n\t %s was altered. This is the callback function.\n", key);
 
@@ -36,17 +21,24 @@ int main() {
 	char secret[1024];
 
 	char key[128];
-	char value[5000];  // infinito
+
+	//the value is defined for demonstration purposes, but the system can handle bigger sized files
+	char value[5000];  
 
 	char option[20];
 	char *result;
 	int a;
+	char *line;
+	size_t n;
+
 	while (1) {
 		while (1) {
 			printf(BOLDWHITE "Enter GroupId: ");
 			scanf("%s", group_id);
 			printf("Enter Secret: ");
 			scanf("%s", secret);
+
+			//establishes connection with the local server
 			a = establish_connection(group_id, secret);
 			if (a == 0) {
 				printf("Established conNEECtion ✔️\n");
@@ -63,13 +55,15 @@ int main() {
 				printf("Timed out ⌛️\n");
 			}
 		}
-		char *line;
-		size_t n;
+		//the app reaches this point whenever there is a successfull connection with one of the groups
 		while (1) {
 			printf("Enter option: ");
+			//we need this sleep for the callback function results not to overlap and destroy the app UI
 			usleep(100);
 			scanf("%s %s", option, group_id);
-			getchar();	// para ler o \n
+			getchar();	
+
+			//Put value on the local server
 			if (strcmp(option, "put") == 0) {
 				printf("Value to store: ");
 				int x = getline(&line, &n, stdin);
@@ -82,7 +76,8 @@ int main() {
 				} else {
 					printf("Error ❌\n");
 				}
-			} else if (strcmp(option, "get") == 0) {
+			}//get value from the local server 
+			else if (strcmp(option, "get") == 0) {
 				a = get_value(group_id, &result);
 				if (a == 0) {
 					printf("Value retrieved ✔️\n");
@@ -93,14 +88,19 @@ int main() {
 				} else {
 					printf("Error ❌\n");
 				}
-			} else if (strcmp(option, "delete") == 0) {
+			} //Delete value from the local server
+			else if (strcmp(option, "delete") == 0) {
 				a = delete_value(group_id);
 				if (a == 0) {
 					printf("Value deleted ✔️\n");
+				} else if (a == -2) {
+					printf("Grupo foi apagado ❌\n");
+					break;
 				} else {
 					printf("Error ❌\n");
 				}
-			} else if (strcmp(option, "close") == 0) {
+			} //Close the connection with the local server
+			else if (strcmp(option, "close") == 0) {
 				a = close_connection();
 				if (a == 0) {
 					printf("Connection closed ✔️\n");
@@ -108,8 +108,9 @@ int main() {
 					printf("Error ❌\n");
 				}
 				break;
-			} else if (strcmp(option, "register") == 0) {
-				a =register_callback(group_id, &keyALterada);
+			} //Register a callback on a key
+			else if (strcmp(option, "register") == 0) {
+				a = register_callback(group_id, &keyALterada);
 				if (a == 0) {
 					printf("Callback registered ✔️\n");
 				} else {
