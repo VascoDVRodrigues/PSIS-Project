@@ -89,7 +89,7 @@ void printApp(Item a) {
 	if (A.connected) {
 		printf("currently connected\n Started connection at %s\n", start);
 	} else {
-		printf("disconnected.\n Started connection at %s\n Ended connection at %s\n", start, end);
+		printf("disconnected.\n Started connection at %s Ended connection at %s", start, end);
 	}
 	return;
 }
@@ -169,7 +169,6 @@ int setup_LocalServer(Server_info_pack *clients) {
 	timeout.tv_usec = 0;
 	// man setsockopt e man 7 socket para perceber as flags
 	setsockopt(auth_server.socket, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof timeout);
-	printf("Auth server socket created!! :)");
 	//////////localserver -- authserver socket///////////////////////
 
 	// local-server --> kvslib CALBACK SOCKET/////////////////
@@ -189,7 +188,6 @@ int setup_LocalServer(Server_info_pack *clients) {
 		return -2;
 	}
 
-	printf("Socket created, has name %s\n", callbacks_server.adress.sun_path);
 	////////////////////////////////////////////////////////////////////////////////
 
 	return 0;
@@ -202,8 +200,8 @@ void *server_UI(void *arg) {
 	int err = 0;
 	Package pack;
 	while (1) {
-		printf("\n\tKVS Local Server\n");
-		printf("1. Create Group\n2. Delete Group\n3. Show group info\n");
+		printf(BOLDBLUE "\n\tKVS Local Server 💻\n");
+		printf(BOLDWHITE "1. Create Group\n2. Delete Group\n3. Show group info\n");
 		printf("4. Show app status\n5. Exit\n");
 		printf("\tChoose one option: ");
 		scanf("%d", &option);
@@ -217,8 +215,6 @@ void *server_UI(void *arg) {
 			// certa enquanto o grupo esta a ser criado
 			// strcpy(pack.secret, "boi");
 
-			printf("Secret: %s\n", pack.secret);
-
 			pack.mode = 1;	// mode 1 ==> creating new group
 			// Group created, send info to auth server
 			pthread_rwlock_wrlock(&Group_acess);
@@ -227,9 +223,10 @@ void *server_UI(void *arg) {
 
 			err = recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
 			if (err < 0) {
-				printf("Timed out, try again later please\n");
+				printf("Timed out, try again later please ⌛️\n");
 			} else {
-				printf("Received: %s\n", pack.groupID);
+				// printf("Received: %s\n", pack.groupID);
+				printf("Secret: %s\n", pack.secret);
 			}
 			pthread_rwlock_unlock(&Group_acess);
 		} else if (option == 2) {  // Delete group
@@ -241,19 +238,20 @@ void *server_UI(void *arg) {
 
 			pthread_rwlock_wrlock(&Group_acess);
 			// printf("REgiao critica do delete group\n");
-			sleep(5);
+			// sleep(5);
 			sendto(auth_server.socket, (void *)&pack, sizeof(pack), 0, (struct sockaddr *)&auth_server.adress, sizeof(auth_server.adress));
 
 			err = recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
 			if (err < 0) {
-				printf("Timed out, try again later please\n");
+				printf("Timed out, try again later please ⌛️\n");
 			} else {
-				printf("Received: %s\n", pack.groupID);
+				printf("Group successfully deleted! ✔️");
+				// printf("Received: %s\n", pack.groupID);
 				// pesquisar na lista de grupos e colocar como desconectado
 				Grupo *g_delete;
 				g_delete = (Grupo *)searchNode(groupsList, (Item)&G_to_delete, compareGroups);
 				if (g_delete != NULL) {
-					//printf("g_delete: %p\n", g_delete);
+					// printf("g_delete: %p\n", g_delete);
 					g_delete->deleted = 1;
 				}
 			}
@@ -272,22 +270,26 @@ void *server_UI(void *arg) {
 
 			err = recv(auth_server.socket, (void *)&pack, sizeof(pack), 0);
 			if (err < 0) {
-				printf("Timed out, try again later please\n");
+				printf("Timed out, try again later please ⌛️\n");
 			} else {
 				// printf("Received: %s\n", pack.groupID);
 
-				printf("Received: \n\tGroupID: %s\n\tSecret: %s\n", pack.groupID, pack.secret);
-				pthread_rwlock_rdlock(&Group_acess);
-				Grupo *grupo_found = (Grupo *)searchNode(groupsList, (Item)&grupo_to_find, compareGroups);
+				// printf("Received: \n\tGroupID: %s\n\tSecret: %s\n", pack.groupID, pack.secret);
 
-				if (grupo_found == NULL) {	// se o grupo ainda n esta na lista de grupos neste server é pq ainda n esta a guardar nada
-					printf("\tThis group doesn't exist here :(\n");
+				if (strcmp(pack.groupID, "group-doesnt-exist") == 0) {
+					printf("This group doesn't exist ❌\n");
 				} else {
-					printf("\tHas %d keys|values\n", grupo_found->n_keyValues);
-				}
-				pthread_rwlock_unlock(&Group_acess);
-			}
+					pthread_rwlock_rdlock(&Group_acess);
+					Grupo *grupo_found = (Grupo *)searchNode(groupsList, (Item)&grupo_to_find, compareGroups);
 
+					if (grupo_found == NULL) {	// se o grupo ainda n esta na lista de grupos neste server é pq ainda n esta a guardar nada
+						printf("\tThis group doesn't exist here ❌\n");
+					} else {
+						printf("\tHas %d keys|values 🔑\n", grupo_found->n_keyValues);
+					}
+					pthread_rwlock_unlock(&Group_acess);
+				}
+			}
 		} else if (option == 4) {  // Show app status
 			pthread_rwlock_rdlock(&Apps_acess);
 			printList(apps, printApp, 0);
@@ -632,7 +634,6 @@ int main() {
 
 	listen(callbacks_server.socket, 10);
 	listen(clients.socket, 10);
-	printf("Waiting for connections!!\n");
 
 	int newClient_socket = 0, n = 0, found = 0;
 	Package pack;
@@ -640,9 +641,6 @@ int main() {
 	while (1) {
 		// while (1) {
 		newClient_socket = accept(clients.socket, NULL, NULL);
-		if (newClient_socket != -1) {
-			printf("Connected to %d\n", newClient_socket);
-		}
 
 		// Contruir o package que vai ser enviado para a thread que trata deste cliente
 		Client_info newClient;
@@ -662,7 +660,7 @@ int main() {
 		pthread_rwlock_unlock(&threads_lock);
 		if (found == 0) {
 			close(newClient_socket);
-			printf("SERVER IS FULL!! :(\n");
+			printf("The server is full 👥\n");
 		}
 
 		// }

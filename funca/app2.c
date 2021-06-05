@@ -3,12 +3,30 @@
 #include <unistd.h>
 #include <string.h>
 
+#define RESET   "\033[0m"
+#define BLACK   "\033[30m"      /* Black */
+#define RED     "\033[31m"      /* Red */
+#define GREEN   "\033[32m"      /* Green */
+#define YELLOW  "\033[33m"      /* Yellow */
+#define BLUE    "\033[34m"      /* Blue */
+#define MAGENTA "\033[35m"      /* Magenta */
+#define CYAN    "\033[36m"      /* Cyan */
+#define WHITE   "\033[37m"      /* White */
+#define BOLDBLACK   "\033[1m\033[30m"      /* Bold Black */
+#define BOLDRED     "\033[1m\033[31m"      /* Bold Red */
+#define BOLDGREEN   "\033[1m\033[32m"      /* Bold Green */
+#define BOLDYELLOW  "\033[1m\033[33m"      /* Bold Yellow */
+#define BOLDBLUE    "\033[1m\033[34m"      /* Bold Blue */
+#define BOLDMAGENTA "\033[1m\033[35m"      /* Bold Magenta */
+#define BOLDCYAN    "\033[1m\033[36m"      /* Bold Cyan */
+#define BOLDWHITE   "\033[1m\033[37m"      /* Bold White */
+
 #include "KVS-lib.h"
 
 void keyALterada(char *key) {
-	printf("\n\tA key %s foi alterada\n\tEsta é func de callback\n", key);
+	printf("\n\t %s was altered. This is the callback function.\n", key);
 
-	// put_value(key, "o bruno e bue gay");
+	// put_value(key, "some new key");
 
 	return;
 }
@@ -25,25 +43,24 @@ int main() {
 	int a;
 	while (1) {
 		while (1) {
-			printf("Enter GroupId: ");
+			printf(BOLDWHITE "Enter GroupId: ");
 			scanf("%s", group_id);
 			printf("Enter Secret: ");
 			scanf("%s", secret);
 			a = establish_connection(group_id, secret);
-			printf("ret do establish: %d\n", a);
 			if (a == 0) {
-				printf("Established conNEECtion :)\n");
+				printf("Established conNEECtion ✔️\n");
 				break;
 			} else if (a == -1) {
-				printf("Correct Group, wrong password... :(\n");
+				printf("Correct Group, wrong password ❌\n");
 			} else if (a == -2) {
-				printf("No Group with same GroupId! :(\n");
+				printf("No Group with same GroupId ❌\n");
 			} else if (a == -3) {
-				printf("Error in connection to server :(\n");
+				printf("Error in connection to server ❌\n");
 			} else if (a == -5) {
-				printf("Full server, try again later!\n");
+				printf("Full server, try again later 👥\n");
 			} else if (a == -4) {
-				printf("Timed out :(\n");
+				printf("Timed out ⌛️\n");
 			}
 		}
 		char *line;
@@ -58,60 +75,48 @@ int main() {
 				int x = getline(&line, &n, stdin);
 				a = put_value(group_id, line);
 				if (a == 0) {
-					printf("funca\n");
+					printf("Value stored ✔️\n");
 				} else if (a == -2) {
-					printf("Grupo foi apagado\n");
+					printf("Grupo foi apagado ❌\n");
 					break;
 				} else {
-					printf("nao funca\n");
+					printf("Error ❌\n");
 				}
 			} else if (strcmp(option, "get") == 0) {
 				a = get_value(group_id, &result);
 				if (a == 0) {
-					printf("funca\n");
+					printf("Value retrieved ✔️\n");
 					printf("Value: %s\n", result);
-				} else if (a == -4) {
-					printf("Grupo foi apagado\n");
+				} else if (a == -2) {
+					printf("Grupo foi apagado ❌\n");
 					break;
 				} else {
-					printf("nao funca\n");
+					printf("Error ❌\n");
 				}
 			} else if (strcmp(option, "delete") == 0) {
 				a = delete_value(group_id);
 				if (a == 0) {
-					printf("funca\n");
+					printf("Value deleted ✔️\n");
 				} else {
-					printf("nao funca\n");
+					printf("Error ❌\n");
 				}
 			} else if (strcmp(option, "close") == 0) {
 				a = close_connection();
 				if (a == 0) {
-					printf("funca\n");
-				} else if (a == -4) {
-					printf("Grupo foi apagado\n");
-					break;
+					printf("Connection closed ✔️\n");
 				} else {
-					printf("nao funca\n");
+					printf("Error ❌\n");
 				}
 				break;
 			} else if (strcmp(option, "register") == 0) {
-				register_callback(group_id, &keyALterada);
+				a =register_callback(group_id, &keyALterada);
+				if (a == 0) {
+					printf("Callback registered ✔️\n");
+				} else {
+					printf("Error ❌\n");
+				}
 			}
 		}
 	}
-
-	/*
-	char *value;
-	a = get_value("1234", &value);
-	if (a == 0)
-	{
-		printf("Received %s\n", value);
-	}
-	else
-	{
-		printf("nao funca");
-	}
-*/
-	// close_connection();
 	return 0;
 }

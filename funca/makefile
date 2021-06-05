@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS= -lpthread
 
-all: KVS-localServer KVS-authServer apps teste
+all: KVS-localServer KVS-authServer apps
 
 # $^ significa todas as dependencias
 # $@ significa o nome da task, aqui representa KVS-localServer
@@ -12,12 +12,9 @@ KVS-authServer: KVS-authServer.c linkedList-lib.c
 	$(CC) $^ -o $@ $(CFLAGS)
 
 #METER AQUI TODAS AS APPS A COMPILAR
-apps: $(addprefix app, 1 2)
+apps: $(addprefix app, 2)
 
 app%: app%.c KVS-lib.c linkedList-lib.c
-	$(CC) $^ -o $@ $(CFLAGS) 
-
-teste: teste.c linkedList-lib.c
 	$(CC) $^ -o $@ $(CFLAGS) 
 
 clean:

@@ -101,16 +101,16 @@ void printList(LinkedList *head, void printItem(Item), int tabs) {
 	}
 
 	LinkedList *current = head;
-	printf("\tHEAD->\n");
+	// printf("\tHEAD->\n");
 	while (current != NULL) {
 		printItem(current->item);
 		current = current->next;
 		for (int i = 0; i < tabs; i++) {
 			printf("\t");
 		}
-		printf("-->\n");
+		printf("\n");
 	}
-	printf("\tNULL\n");
+	// printf("\tNULL\n");
 }
 
 LinkedList *clearList(LinkedList *head, void freeItem(Item)) {
