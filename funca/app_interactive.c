@@ -43,21 +43,21 @@ int main() {
 			if (a == 0) {
 				printf("Established conNEECtion ✔️\n");
 				break;
-			} else if (a == -1) {
+			} else if (a == WRONG_SECRET) {
 				printf("Correct Group, wrong password ❌\n");
-			} else if (a == -2) {
+			} else if (a == WRONG_GROUP) {
 				printf("No Group with same GroupId ❌\n");
-			} else if (a == -3) {
+			} else if (a == ERROR_CONNECTION) {
 				printf("Error in connection to server ❌\n");
-			} else if (a == -5) {
+			} else if (a == FULL_SERVER) {
 				printf("Full server, try again later 👥\n");
-			} else if (a == -4) {
+			} else if (a == TIMED_OUT) {
 				printf("Timed out ⌛️\n");
 			}
 		}
 		// the app reaches this point whenever there is a successfull connection with one of the groups
 		while (1) {
-			printf("Enter option: ");
+			printf("\nEnter option: ");
 			// we need this sleep for the callback function results not to overlap and destroy the app UI
 			usleep(100);
 			scanf("%s %s", option, group_id);
@@ -68,10 +68,10 @@ int main() {
 				printf("Value to store: ");
 				int x = getline(&line, &n, stdin);
 				a = put_value(group_id, line);
-				if (a == 0) {
+				if (a == NO_ERROR) {
 					printf("Value Stored ✔️\n");
-				} else if (a == -2) {
-					printf("Gropup was deleted ❌\n");
+				} else if (a == GROUP_DELETED) {
+					printf("Group was deleted ❌\n");
 					break;
 				} else {
 					printf("Error ❌\n");
@@ -79,15 +79,15 @@ int main() {
 			}  // get value from the local server
 			else if (strcmp(option, "get") == 0) {
 				a = get_value(group_id, &result);
-				if (a == 0) {
+				if (a == NO_ERROR) {
 					printf("Value retrieved ✔️\n");
 					printf("Value: %s\n", result);
-				} else if (a == -2) {
+				} else if (a == GROUP_DELETED) {
 					printf("Group was deleted ❌\n");
 					break;
-				} else if (a == -4) {
+				} else if (a == NO_KEY) {
 					printf("Key doesn't exist ❌\n");
-				} else if (a == -3) {
+				} else if (a == ERROR_CONNECTION) {
 					printf("Error comunicating with the server ❌\n");
 					break;
 				} else {
@@ -96,9 +96,9 @@ int main() {
 			}  // Delete value from the local server
 			else if (strcmp(option, "delete") == 0) {
 				a = delete_value(group_id);
-				if (a == 0) {
+				if (a == NO_ERROR) {
 					printf("Value deleted ✔️\n");
-				} else if (a == -2) {
+				} else if (a == GROUP_DELETED) {
 					printf("Group was deleted ❌\n");
 					break;
 				} else {
@@ -107,7 +107,7 @@ int main() {
 			}  // Close the connection with the local server
 			else if (strcmp(option, "close") == 0) {
 				a = close_connection();
-				if (a == 0) {
+				if (a == NO_ERROR) {
 					printf("Connection closed ✔️\n");
 				} else {
 					printf("Error ❌\n");
@@ -116,7 +116,7 @@ int main() {
 			}  // Register a callback on a key
 			else if (strcmp(option, "register") == 0) {
 				a = register_callback(group_id, &keyALterada);
-				if (a == 0) {
+				if (a == NO_ERROR) {
 					printf("Callback registered ✔️\n");
 				} else {
 					printf("Error ❌\n");

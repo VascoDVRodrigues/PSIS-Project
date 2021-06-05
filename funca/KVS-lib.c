@@ -90,12 +90,12 @@ void *callback_handler() {
  *   group_id: id of the group trying to connect (MAX SIZE 1024)
  *   secret: secret of the group trying to connect (MAX SIZE 1024)
  *
- *   returns: 0 if the connection was successfully made
- * 		     -1 the group existes but the secret isn't correct
- * 			 -2 the group doesn't exist
- * 			 -3 error in the connection to the server
- * 			 -4 timed out error
- * 		     -5 Full server
+ *   returns:NO_ERROR: if the connection was successfully made
+ * 		     WRONG_SECRET: the group exists but the secret isn't correct
+ * 			 WRONG_GROUP: the group doesn't exist
+ * 			 ERROR_CONNECTION: error in the connection to the server
+ * 			 TIMED_OUT: timed out error
+ * 		     FULL_SERVER: Full server
  */
 int establish_connection(char *group_id, char *secret) {
 	Package pack;
@@ -107,7 +107,7 @@ int establish_connection(char *group_id, char *secret) {
 	local_server_sock = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (local_server_sock < 0) {
 		// perror("Error creating socket");
-		return -3;
+		return ERROR_CONNECTION;
 	}
 	local_server.sun_family = AF_UNIX;
 	strcpy(local_server.sun_path, SOCKNAME);
@@ -115,7 +115,7 @@ int establish_connection(char *group_id, char *secret) {
 	if (connect(local_server_sock, (struct sockaddr *)&local_server, sizeof(struct sockaddr_un)) < 0) {
 		close(local_server_sock);
 		// perror("connecting stream socket");
-		return -3;
+		return ERROR_CONNECTION;
 	}
 
 	strcpy(pack.groupID, group_id);
@@ -134,19 +134,19 @@ int establish_connection(char *group_id, char *secret) {
 
 		// create a thread to manage the callback process
 		pthread_create(&callback_th, NULL, (void *)callback_handler, NULL);
-		return 0;
+		return NO_ERROR;
 	} else if (strcmp(pack.groupID, "accepted-group") == 0) {
 		// the group existes but the secret isn't correct
-		return -1;
+		return WRONG_SECRET;
 	} else if (strcmp(pack.secret, "declined-group") == 0) {
 		// the group doesn't exist
-		return -2;
+		return WRONG_GROUP;
 	} else if (strcmp(pack.secret, "timed-out") == 0) {
 		// the local server didn't respond on a set amount of time
-		return -4;
+		return TIMED_OUT;
 	} else if (a <= 0) {
 		// the local server didn't respond at all
-		return -5;
+		return FULL_SERVER;
 	}
 }
 
@@ -158,10 +158,10 @@ int establish_connection(char *group_id, char *secret) {
  *   key: a key to identify the stored value (MAX SIZE 128)
  *   value: the value to store (NO MAX SIZE)
  *
- *   returns: 0 the value was successfully stored on the local server
- * 		     -1 there was an error saving the value on the local server
- * 			 -2 the group doesnt exist. Connection will be automatically closed
- * 			 -3 there was an error comunicating with the server
+ *   returns:NO_ERROR: the value was successfully stored on the local server
+ * 		     SERVER_ERROR: there was an error saving the value on the local server
+ * 			 GROUP_DELETED: the group doesnt exist. Connection will be automatically closed
+ * 			 ERROR_CONNECTION: there was an error comunicating with the server
  *
  */
 int put_value(char *key, char *value) {
@@ -184,31 +184,31 @@ int put_value(char *key, char *value) {
 	if (send(local_server_sock, (void *)&a, sizeof(a), 0) <= 0) {
 		// there was an error sending the data to the socket
 		// perror("writing on stream socket");
-		return -3;
+		return ERROR_CONNECTION;
 	}
 
 	// send the value to store on the local server
 	if (send(local_server_sock, (void *)value, size, 0) < 0) {
 		// perror("sending value to store");
-		return -3;
+		return ERROR_CONNECTION;
 	}
 
 	// Recieve the response from server
 	if (recv(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		// perror("recieving response");
-		return -3;
+		return ERROR_CONNECTION;
 	}
 	printf("received: %s\n", a.secret);
 	// The value was correctly stored on the local server
 	if (strcmp(a.secret, "accepted") == 0) {
-		return 0;
+		return NO_ERROR;
 	} else if (strcmp(a.secret, "group-deleted") == 0) {
 		// the group doesnt exist. Must close the connection
 		close_connection();
-		return -2;
+		return GROUP_DELETED;
 	} else {
 		// there was an error saving the value on the local server
-		return -1;
+		return SERVER_ERROR;
 	}
 }
 
@@ -220,11 +220,11 @@ int put_value(char *key, char *value) {
  *   key: a key to identify the value to retrieve
  *   value: the pointer to the variable in which the value of the key will be stored
  *
- *   returns: 0 the value was successfully retrieved from the local server
- * 		     -1 there was an error retrieving the value from the local server
- * 			 -2 the group doesnt exist. Connection will be automatically closed
- *			 -3 there was an error comunicating with the server
- *			 -4 the key doesnt exist in that group
+ *   returns:NO_ERROR: the value was successfully retrieved from the local server
+ * 		     SERVER_ERROR: there was an error retrieving the value from the local server
+ * 			 GROUP_DELETED: the group doesnt exist. Connection will be automatically closed
+ *			 ERROR_CONNECTION: there was an error comunicating with the server
+ *			 NO_KEY -4 the key doesnt exist in that group
  */
 int get_value(char *key, char **value) {
 	Package a;
@@ -241,35 +241,35 @@ int get_value(char *key, char **value) {
 	// Send the mode and key to the socket
 	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		// perror("writing on stream socket");
-		return -3;
+		return ERROR_CONNECTION;
 	}
 
 	// local server responds
 	if (recv(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		// perror("Receiving message from server!!\n");
-		return -3;
+		return ERROR_CONNECTION;
 	}
 
 	if (strcmp(a.secret, "accepted") == 0) {
 		// if the value exists on the local server, it will send the size of the value to alocate the memory
 		if (recv(local_server_sock, (void *)&size, sizeof(size), 0) < 0) {
-			return -3;
+			return ERROR_CONNECTION;
 		}
 		*value = (char *)malloc(sizeof(char) * size);
 		// then the local server sends the value to be stored on the value
 		if (recv(local_server_sock, (void *)*value, size, 0) < 0) {
-			return -3;
+			return ERROR_CONNECTION;
 		}
-		return 0;
+		return NO_ERROR;
 	} else if (strcmp(a.secret, "declined") == 0) {
-		return -4;
+		return NO_KEY;
 	} else if (strcmp(a.secret, "group-deleted") == 0) {
 		// the group doesn't exist anymore. Must close the connection
 		close_connection();
-		return -2;
+		return GROUP_DELETED;
 	}
 	// there was an error retrieving the value from the local server
-	return -1;
+	return SERVER_ERROR;
 }
 
 /*
@@ -279,10 +279,10 @@ int get_value(char *key, char **value) {
  *
  *   key: a key to identify the value to delete
  *
- *   returns: 0 the value was successfully retrieved from the local server
- * 		     -1 there was an error deleting the value from the local server
- *			 -2 the group doesnt exist. Connection will be automatically closed
- *			 -3 there was an error comunicating with the server
+ *   returns:NO_ERROR: the value was successfully retrieved from the local server
+ * 		     SERVER_ERROR: there was an error deleting the value from the local server
+ *			 GROUP_DELETED: the group doesnt exist. Connection will be automatically closed
+ *			 ERROR_CONNECTION: there was an error comunicating with the server
  *
  */
 int delete_value(char *key) {
@@ -298,21 +298,21 @@ int delete_value(char *key) {
 
 	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		// perror("writing on stream socket");
-		return -3;
+		return ERROR_CONNECTION;
 	}
 
 	int n = recv(local_server_sock, (void *)&a, sizeof(a), 0);
 	if (n < 0) {
 		// perror("Receiving message from server!!\n");
-		return -3;
+		return ERROR_CONNECTION;
 	}
 	if (strcmp(a.secret, "accepted") == 0) {
-		return 0;
+		return NO_ERROR;
 	} else if (strcmp(a.secret, "group-deleted") == 0) {
 		close_connection();
-		return -2;
+		return GROUP_DELETED;
 	}
-	return -1;
+	return SERVER_ERROR;
 }
 
 /*
@@ -334,15 +334,15 @@ void printWatch(Item c1) {
  *   key: a key to identify the value whose update triggers the callback
  *   (*callback_function)(char*): pointer to function that MUST receive a char* and return void
  *
- *   returns: 0 the callback was successfully implemented
- *			 -1 error registering the callback
+ *   returns:NO_ERROR: the callback was successfully implemented
+ *			 SERVER_ERROR: error registering the callback
  *
  */
 int register_callback(char *key, void (*callback_function)(char *)) {
 	// Creates node of the linked list that stores the callback data
 	Callback_info *newData = calloc(1, sizeof(Callback_info));
 	if (newData == NULL) {
-		return -1;
+		return SERVER_ERROR;
 	}
 
 	// Garantees that the key doesnt exceed the max size
@@ -356,7 +356,7 @@ int register_callback(char *key, void (*callback_function)(char *)) {
 	// inserts the node on the watchlist
 	watchList = insertNode(watchList, (Item)newData);
 
-	return 0;
+	return NO_ERROR;
 }
 
 /*
@@ -364,11 +364,10 @@ int register_callback(char *key, void (*callback_function)(char *)) {
  * ----------------------------
  *   Closes the connection between a client and the local server
  *
- *   returns: 0 the connection was successfully closed
- *			 -1 there was an error comunicating with the server
+ *   returns:NO_ERROR: the connection was successfully closed
+ *			 ERROR_CONNECTION: there was an error comunicating with the server
  *
  */
-
 int close_connection() {
 	Package a;
 	a.mode = 3;
@@ -376,11 +375,11 @@ int close_connection() {
 	// just send a package with the mode 3
 	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
 		perror("writing on stream socket");
-		return -1;
+		return ERROR_CONNECTION;
 	}
 
 	if (close(local_server_sock) != 0) {
-		return -1;
+		return ERROR_CONNECTION;
 	}
-	return 0;
+	return NO_ERROR;
 }

@@ -9,11 +9,7 @@ typedef struct _auth_grupo {
 // Linked List to save the groups data
 LinkedList *groups_list;
 
-void freeGroup(Item item) {
-	Auth_grupo *g = (Auth_grupo *)item;
-	free(g->secret);
-	return;
-}
+void freeGroup(Item item) { return; }
 
 /*
  * Function: printGroups

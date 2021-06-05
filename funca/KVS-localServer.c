@@ -291,7 +291,7 @@ int setup_LocalServer(Server_info_pack *clients) {
  */
 void *server_UI(void *arg) {
 	Server_info_pack auth_server = *(Server_info_pack *)arg;
-
+	char secret[1024];
 	int option = 0;
 	int err = 0;
 	Package pack;
@@ -307,7 +307,7 @@ void *server_UI(void *arg) {
 
 			// generate a new random string to be the secret
 			strcpy(pack.secret, randomString(5));
-
+			strcpy(secret, pack.secret);
 			// Uncomment this to simulate the improbable case of someone trying to connect with the correct password
 			// of the group that is being created
 			// strcpy(pack.secret, "known_secret");
@@ -324,7 +324,12 @@ void *server_UI(void *arg) {
 			if (err < 0) {
 				printf("Timed out, try again later please ⌛️\n");
 			} else {
-				printf("Secret: %s\n", pack.secret);
+				printf("Received: %s\n", pack.secret);
+				if (strcmp(pack.secret, "group-saved")==0)
+				{
+					printf("Secret: %s\n", secret);
+				}
+				
 			}
 			// unblock the groups
 			pthread_rwlock_unlock(&Group_acess);
@@ -485,8 +490,8 @@ void *client_handler(void *arg) {
 		strcpy(newGroup->groupID, pack.groupID);
 
 		// Check if it was already added to the list by other app
-		if (searchNode(groupsList, (Item)newGroup, compareGroups) == NULL) {  
-			//the group doesn't exist yet
+		if (searchNode(groupsList, (Item)newGroup, compareGroups) == NULL) {
+			// the group doesn't exist yet
 			groupsList = insertNode(groupsList, (Item)newGroup);
 		}
 
@@ -606,8 +611,8 @@ void *client_handler(void *arg) {
 			// client sent the key on pack.secret
 			strcpy(data_to_find.key, pack.secret);
 
-	 		// block all groups for reading
-			pthread_rwlock_rdlock(&Group_acess); 
+			// block all groups for reading
+			pthread_rwlock_rdlock(&Group_acess);
 			// update the pointer to the connected group
 			client.connected_group = (Grupo *)searchNode(groupsList, (Item)client.connected_group, compareGroups);
 			if (client.connected_group != NULL) {  // group still exists
@@ -630,7 +635,7 @@ void *client_handler(void *arg) {
 					send(client.socket, (void *)data->value, size, 0);
 				}
 
-			} else {  
+			} else {
 				pthread_rwlock_unlock(&Group_acess);
 			}
 		} else if (pack.mode == 2 && n > 0) {  // DELETE VALUE
