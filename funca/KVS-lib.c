@@ -198,7 +198,6 @@ int put_value(char *key, char *value) {
 		// perror("recieving response");
 		return ERROR_CONNECTION;
 	}
-	printf("received: %s\n", a.secret);
 	// The value was correctly stored on the local server
 	if (strcmp(a.secret, "accepted") == 0) {
 		return NO_ERROR;
@@ -374,7 +373,7 @@ int close_connection() {
 
 	// just send a package with the mode 3
 	if (send(local_server_sock, (void *)&a, sizeof(a), 0) < 0) {
-		perror("writing on stream socket");
+		// perror("writing on stream socket");
 		return ERROR_CONNECTION;
 	}
 

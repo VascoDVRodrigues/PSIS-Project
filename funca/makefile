@@ -12,7 +12,7 @@ KVS-authServer: KVS-authServer.c linkedList-lib.c
 	$(CC) $^ -o $@ $(CFLAGS)
 
 #METER AQUI TODAS AS APPS A COMPILAR
-apps: $(addprefix app, _interactive _big_put)
+apps: $(addprefix app, _interactive _big_put _many_put _2_connects)
 
 app%: app%.c KVS-lib.c linkedList-lib.c
 	$(CC) $^ -o $@ $(CFLAGS) 
