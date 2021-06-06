@@ -57,7 +57,7 @@ int main() {
 		}
 		// the app reaches this point whenever there is a successfull connection with one of the groups
 		while (1) {
-			printf("\nEnter option: ");
+			printf("\nEnter option (put/get/delete/register/close) (key associated to the operation): ");
 			// we need this sleep for the callback function results not to overlap and destroy the app UI
 			usleep(100);
 			scanf("%s %s", option, group_id);

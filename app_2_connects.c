@@ -52,15 +52,6 @@ void *func(void *arg) {
 	}
 }
 
-// exemple of function to be executed whenever a key's value is updated
-void keyALterada(char *key) {
-	printf("\n\t %s was altered. This is the callback function.\n", key);
-
-	// put_value(key, "some new key");
-
-	return;
-}
-
 int main() {
 	// Comment this line to generate the same strings every time
 	srand(time(NULL));

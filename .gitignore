@@ -3,3 +3,5 @@ KVS-authServer
 app1
 app2
 teste
+app_*[^.c]
+.fuse_hidden*
