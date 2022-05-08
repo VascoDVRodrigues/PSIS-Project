@@ -6,7 +6,7 @@ André Silva, 93014
 
 Vasco Rodrigues, 93198
 
-##Final Grade 18.5/20
+## Final Grade 18.5/20
 
 Building
 -----------
