@@ -1,10 +1,12 @@
-# projeto-psis
+# Systems Programming Course - Final Project
 
 Group 40
 
 André Silva, 93014
 
 Vasco Rodrigues, 93198
+
+##Final Grade 18.5/20
 
 Building
 -----------
